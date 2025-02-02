@@ -1,8 +1,27 @@
 model Comment {
+    id       Int     @id @default(autoincrement())
+    likes    Int     @default(0)
+    dislikes Int     @default(0)
+    comment  String
+    createdAt DateTime @default(now())
 
+    userId Int
+    bookId Int
+    user User @relation(fields: [userId], references: [id])
+    book Book @relation(fields: [bookId], references: [id])
 }
 
 model CommentReaction {
+    id       Int     @id @default(autoincrement())
+    reaction Reaction 
 
+    commentId Int
+    userId Int
+    comment Comment @relation(fields: [commentId], references: [id])
+    user User @relation(fields: [userId], references: [id])
 }
 
+enum Reaction {
+    LIKE
+    DISLIKE
+}

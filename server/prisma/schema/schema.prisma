@@ -1,24 +1,37 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String     @id @default(cuid())
+  id        Int     @id @default(autoincrement())
   email     String     @unique
   name      String?
   password  String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  clubs     ClubMember[]
+  photoUrl  String?
+  bio       String?
+  favouriteGenres String[]
+
+  friendRequestsSent FriendRequest[] @relation("sentRequests")
+  friendRequestsReceived FriendRequest[] @relation("receivedRequests")
+  comments Comment[]
+  clubMembership ClubMember
+  bookRatings BookRating[]
   libraries Library[]
 }
 
-model Friendship {
+model FriendRequest {
+  id         Int  @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  status     String
 
+  sender   User @relation("sentRequests", fields: [senderId], references: [id])
+  receiver User @relation("receivedRequests", fields: [receiverId], references: [id])
 }

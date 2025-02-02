@@ -1,3 +1,26 @@
 model Library {
-    
+    id        Int     @id @default(autoincrement())
+    status    LibraryStatus
+    visibility LibraryVisibility
+    customListName String?
+
+    userId Int
+    bookId Int
+    user User @relation(fields: [userId], references: [id])
+    book Book @relation(fields: [bookId], references: [id])
+}
+
+enum LibraryStatus {
+    FAVOURITE
+    READING
+    ALREADY_READ
+    WANNA_READ
+    DROPPED
+    CUSTOM
+}
+
+enum LibraryVisibility {
+    PUBLIC
+    PRIVATE
+    FRIENDS
 }
