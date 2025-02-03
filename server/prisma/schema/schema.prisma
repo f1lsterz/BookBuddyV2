@@ -16,12 +16,12 @@ model User {
   password  String?
   photoUrl  String?
   bio       String?
-  favouriteGenres String[]
+  favouriteGenres Json
 
   friendRequestsSent FriendRequest[] @relation("sentRequests")
   friendRequestsReceived FriendRequest[] @relation("receivedRequests")
   comments Comment[]
-  clubMembership ClubMember
+  clubMembership ClubMember? @relation("ClubMemberToUser", fields: [id], references: [userId])
   bookRatings BookRating[]
   libraries Library[]
 }

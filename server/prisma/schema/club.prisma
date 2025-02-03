@@ -11,10 +11,11 @@ model Club {
 model ClubMember {
     role ClubRole
 
-    userId Int
+    userId Int @unique
     clubId Int
     user User @relation(fields: [userId], references: [id])
     club Club @relation(fields: [clubId], references: [id])
+    @@unique([userId, clubId])
 }
 
 enum ClubRole {

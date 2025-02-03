@@ -9,6 +9,7 @@ model Comment {
     bookId Int
     user User @relation(fields: [userId], references: [id])
     book Book @relation(fields: [bookId], references: [id])
+    reactions CommentReaction[]
 }
 
 model CommentReaction {
