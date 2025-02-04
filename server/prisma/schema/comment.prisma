@@ -20,6 +20,7 @@ model CommentReaction {
     userId Int
     comment Comment @relation(fields: [commentId], references: [id])
     user User @relation(fields: [userId], references: [id])
+    @@unique([userId, commentId])
 }
 
 enum Reaction {

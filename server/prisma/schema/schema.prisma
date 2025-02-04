@@ -21,7 +21,8 @@ model User {
   friendRequestsSent FriendRequest[] @relation("sentRequests")
   friendRequestsReceived FriendRequest[] @relation("receivedRequests")
   comments Comment[]
-  clubMembership ClubMember? @relation("ClubMemberToUser", fields: [id], references: [userId])
+  commentReactions CommentReaction[]
+  clubMembership ClubMember? @relation("ClubMemberToUser")
   bookRatings BookRating[]
   libraries Library[]
 }
