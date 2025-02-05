@@ -5,32 +5,46 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "src/prisma.service";
+import { CreateUserDto } from "./dto/createUserDto";
+import { UpdateUserDto } from "./dto/updateUserDto";
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
-
-  async findByEmailOrId(findUserDto: FindUserDto) {
-    const { id, email } = findUserDto;
-
-    if (!id && !email) {
-      throw new BadRequestException();
+  async findUserById(id: number): Promise<User> {
+    if (!id) {
+      throw new BadRequestException("User ID is required");
     }
 
-    const user = id
-      ? await this.prisma.user.findUnique({ where: { id } })
-      : await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
 
     return user;
   }
 
-  async findAll() {
+  async findUserByEmail(email: string): Promise<User> {
+    if (!email) {
+      throw new BadRequestException("Email is required");
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      throw new NotFoundException(`User with email ${email} not found`);
+    }
+
+    return user;
+  }
+
+  async findAllUsers() {
     const users = await this.prisma.user.findMany({
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
       },
     });
 
@@ -42,15 +56,15 @@ export class UserService {
   }
 
   async createUser(createUserDto: CreateUserDto) {
-    const { email, password, name, role } = createUserDto;
+    const { email, password, name } = createUserDto;
 
-    const existingUser = await this.findByEmailOrId({ email });
+    const existingUser = await this.findUserByEmail(email);
     if (existingUser) {
       throw new BadRequestException("User with this email already exists");
     }
 
     const user = await this.prisma.user.create({
-      data: { email, password, name, role },
+      data: { email, password, name },
     });
 
     if (!user) {
@@ -61,7 +75,7 @@ export class UserService {
   }
 
   async updateUser(id: number, updateUserDto: UpdateUserDto) {
-    const user = await this.findByEmailOrId({ id });
+    const user = await this.findUserById(id);
 
     if (!user) {
       throw new NotFoundException("User not found");
