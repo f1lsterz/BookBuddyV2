@@ -5,6 +5,6 @@ import { RolesGuard } from "../guards/role.guard";
 export function Access(...roles: string[]) {
   return applyDecorators(
     SetMetadata("roles", roles),
-    UseGuards(JwtAuthGuard, RolesGuard)
+    UseGuards(JwtAuthGuard, RolesGuard),
   );
 }

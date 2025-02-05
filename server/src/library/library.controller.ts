@@ -1,7 +1,7 @@
-import { Controller } from '@nestjs/common';
-import { LibraryService } from './library.service';
+import { Controller } from "@nestjs/common";
+import { LibraryService } from "./library.service";
 
-@Controller('library')
+@Controller("library")
 export class LibraryController {
   constructor(private readonly libraryService: LibraryService) {}
 }

@@ -7,7 +7,7 @@ import config from "src/config/config";
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    @Inject(config.KEY) private configService: ConfigType<typeof config>
+    @Inject(config.KEY) private configService: ConfigType<typeof config>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

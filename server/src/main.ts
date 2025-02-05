@@ -19,7 +19,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
-    })
+    }),
   );
   app.useGlobalFilters(new ValidationFilter());
 

@@ -13,7 +13,7 @@ export class AuthService {
   constructor(
     @Inject(config.KEY) private configService: ConfigType<typeof config>,
     private readonly userService: UserService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
   ) {}
 
   async validateGoogleUser(googleUser: GoogleUser): Promise<User> {
@@ -33,7 +33,7 @@ export class AuthService {
   }
 
   async login(
-    loginDto: LoginDto
+    loginDto: LoginDto,
   ): Promise<{ accessToken: string; user: User }> {
     const { email, password } = loginDto;
     const user = await this.userService.findByEmailOrId({ email });
@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async registration(
-    registrationDto: RegistrationDto
+    registrationDto: RegistrationDto,
   ): Promise<{ accessToken: string; user: User }> {
     console.log(registrationDto);
     const { email, password, name, role } = registrationDto;
@@ -68,7 +68,7 @@ export class AuthService {
 
   private async validatePassword(
     password: string,
-    userPassword: string
+    userPassword: string,
   ): Promise<boolean> {
     return await bcrypt.compare(password, userPassword);
   }

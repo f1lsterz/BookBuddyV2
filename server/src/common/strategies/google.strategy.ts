@@ -9,7 +9,7 @@ import config from "src/config/config";
 export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
   constructor(
     @Inject(config.KEY) private configService: ConfigType<typeof config>,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {
     super({
       clientID: configService.google.clientID,
@@ -23,7 +23,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
     _accessToken: string,
     _refreshToken: string,
     profile: Profile,
-    done: VerifyCallback
+    done: VerifyCallback,
   ): Promise<any> {
     const { emails, displayName, photos } = profile;
     const user = await this.authService.validateGoogleUser({
