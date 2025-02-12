@@ -4,4 +4,8 @@ import { LibraryService } from "./library.service";
 @Controller("library")
 export class LibraryController {
   constructor(private readonly libraryService: LibraryService) {}
+
+  async getLibrary(): Promise<> {
+    return;
+  }
 }

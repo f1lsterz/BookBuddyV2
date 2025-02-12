@@ -90,7 +90,7 @@ export class UserService {
   }
 
   async deleteUser(id: number) {
-    await this.findByEmailOrId({ id });
+    await this.findUserById(id);
 
     return await this.prisma.user.delete({ where: { id } });
   }

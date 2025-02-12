@@ -12,7 +12,7 @@ model Book {
 
     ratings BookRating[]
     comments Comment[]
-    libraries Library[]
+    libraries LibraryBook[]
 }
 
 model BookRating {
