@@ -16,7 +16,7 @@ model User {
   password  String?
   photoUrl  String?
   bio       String?
-  favouriteGenres Json
+  favouriteGenres Json?
 
   friendRequestsSent FriendRequest[] @relation("sentRequests")
   friendRequestsReceived FriendRequest[] @relation("receivedRequests")
@@ -25,6 +25,8 @@ model User {
   clubMembership ClubMember? @relation("ClubMemberToUser")
   bookRatings BookRating[]
   libraries Library[]
+
+  @@index([email])
 }
 
 model FriendRequest {

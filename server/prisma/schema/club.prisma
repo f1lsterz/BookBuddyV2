@@ -1,9 +1,9 @@
 model Club {
     id       Int     @id @default(autoincrement())
     name     String
-    description String
+    description String?
     memberCount Int @default(0)
-    imageUrl String
+    imageUrl String?
 
     members ClubMember[]
 }

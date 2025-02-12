@@ -3,12 +3,12 @@ model Book {
     title    String
     author   String
     genres   Json
-    description String
-    coverUrl String
-    publicationDate DateTime
-    pageCount Int
-    averageRating Float
-    commentCount Int
+    description String?
+    coverUrl String?
+    publicationDate DateTime?
+    pageCount Int?
+    averageRating Float @default(0)
+    commentCount Int @default(0)
 
     ratings BookRating[]
     comments Comment[]
