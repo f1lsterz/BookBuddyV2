@@ -7,15 +7,12 @@ import {
 import { PrismaService } from "src/prisma.service";
 import { CreateUserDto } from "./dto/createUserDto";
 import { UpdateUserDto } from "./dto/updateUserDto";
+import { User } from "@prisma/client";
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
   async findUserById(id: number): Promise<User> {
-    if (!id) {
-      throw new BadRequestException("User ID is required");
-    }
-
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) {
