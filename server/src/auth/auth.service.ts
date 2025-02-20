@@ -7,19 +7,19 @@ import config from "src/config/config";
 import { UserService } from "src/user/user.service";
 import { LoginDto } from "./dto/loginDto";
 import { RegistrationDto } from "./dto/registrationDto";
+import { User } from "@prisma/client";
+import { ApiError } from "src/common/errors/apiError";
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(config.KEY) private configService: ConfigType<typeof config>,
     private readonly userService: UserService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   async validateGoogleUser(googleUser: GoogleUser): Promise<User> {
-    const user = await this.userService.findByEmailOrId({
-      email: googleUser.email,
-    });
+    const user = await this.userService.findUserByEmail(googleUser.email);
 
     if (user) return user;
 
@@ -28,18 +28,17 @@ export class AuthService {
       name: googleUser.name,
       photoUrl: googleUser.photoURL,
       password: "",
-      role: "USER",
     });
   }
 
   async login(
-    loginDto: LoginDto,
+    loginDto: LoginDto
   ): Promise<{ accessToken: string; user: User }> {
     const { email, password } = loginDto;
-    const user = await this.userService.findByEmailOrId({ email });
+    const user = await this.userService.findUserByEmail(email);
 
     if (!user || !(await this.validatePassword(password, user.password))) {
-      throw new UnauthorizedException("Invalid email or password");
+      throw ApiError.Unauthorized("Invalid email or password");
     }
 
     const accessToken = await this.generateAccessToken(user);
@@ -48,17 +47,15 @@ export class AuthService {
   }
 
   async registration(
-    registrationDto: RegistrationDto,
+    registrationDto: RegistrationDto
   ): Promise<{ accessToken: string; user: User }> {
-    console.log(registrationDto);
-    const { email, password, name, role } = registrationDto;
+    const { email, password, name } = registrationDto;
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await this.userService.createUser({
       email,
       password: hashedPassword,
       name,
-      role: role || "USER",
     });
 
     const accessToken = await this.generateAccessToken(user);
@@ -68,7 +65,7 @@ export class AuthService {
 
   private async validatePassword(
     password: string,
-    userPassword: string,
+    userPassword: string
   ): Promise<boolean> {
     return await bcrypt.compare(password, userPassword);
   }
