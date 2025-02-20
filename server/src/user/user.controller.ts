@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { UserByIdPipe } from "src/common/pipes/UserById";
+import { UserByIdPipe } from "src/common/pipes/NotExistById/UserById";
 import { JwtAuthGuard } from "src/common/guards/jwtAuth.guard";
 import { UpdateUserDto } from "./dto/updateUserDto";
 

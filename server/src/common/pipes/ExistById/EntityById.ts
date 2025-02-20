@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, PipeTransform } from "@nestjs/common";
+import { ApiError } from "src/common/errors/apiError";
 import { PrismaService } from "src/prisma.service";
 
 @Injectable()
-export class EntityByIdPipe implements PipeTransform<number, Promise<number>> {
+export class EntityDoesNotExistPipe
+  implements PipeTransform<number, Promise<number>>
+{
   constructor(
     private readonly prisma: PrismaService,
     private readonly entity: string
@@ -13,8 +16,8 @@ export class EntityByIdPipe implements PipeTransform<number, Promise<number>> {
       where: { id },
     });
 
-    if (!entity) {
-      throw new NotFoundException(`${this.entity} with ID ${id} not found`);
+    if (entity) {
+      throw ApiError.NotFound(`${this.entity} with ID ${id} already exists`);
     }
 
     return id;

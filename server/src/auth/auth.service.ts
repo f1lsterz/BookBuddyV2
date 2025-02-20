@@ -41,6 +41,10 @@ export class AuthService {
       throw ApiError.Unauthorized("Invalid email or password");
     }
 
+    if (user && user.password === "") {
+      throw ApiError.Unauthorized("Please login with Google");
+    }
+
     const accessToken = await this.generateAccessToken(user);
 
     return { user, accessToken };
