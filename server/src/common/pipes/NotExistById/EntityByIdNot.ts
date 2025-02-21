@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, PipeTransform } from "@nestjs/common";
+import { Injectable, PipeTransform } from "@nestjs/common";
 import { ApiError } from "src/common/errors/apiError";
 import { PrismaService } from "src/prisma.service";
 
 @Injectable()
-export class EntityByIdPipe implements PipeTransform<number, Promise<number>> {
+export class EntityByIdNotPipe
+  implements PipeTransform<number, Promise<number>>
+{
   constructor(
     private readonly prisma: PrismaService,
     private readonly entity: string

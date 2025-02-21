@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, PipeTransform } from "@nestjs/common";
+import { Injectable, PipeTransform } from "@nestjs/common";
 import { ApiError } from "src/common/errors/apiError";
 import { PrismaService } from "src/prisma.service";
 

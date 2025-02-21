@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma.service";
-import { EntityByIdPipe } from "../NotExistById/EntityById";
+import { EntityDoesNotExistPipe } from "../ExistById/EntityById";
 
 @Injectable()
-export class CommentByIdPipe extends EntityByIdPipe {
+export class CommentByIdPipe extends EntityDoesNotExistPipe {
   constructor(prisma: PrismaService) {
     super(prisma, "comment");
   }

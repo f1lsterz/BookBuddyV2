@@ -13,6 +13,7 @@ import { LoginDto } from "./dto/loginDto";
 import { RegistrationDto } from "./dto/registrationDto";
 import { GoogleOAuthGuard } from "src/common/guards/googleOAuth.guard";
 import { JwtAuthGuard } from "src/common/guards/jwtAuth.guard";
+import { User } from "@prisma/client";
 
 @Controller("auth")
 export class AuthController {
@@ -21,7 +22,7 @@ export class AuthController {
   @Post("login")
   async login(
     @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: Response
   ): Promise<{ user: User }> {
     const { user, accessToken } = await this.authService.login(loginDto);
 
@@ -38,7 +39,7 @@ export class AuthController {
   @Post("registration")
   async registration(
     @Body() registrationDto: RegistrationDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: Response
   ): Promise<{ user: User }> {
     const { user, accessToken } =
       await this.authService.registration(registrationDto);
@@ -60,7 +61,7 @@ export class AuthController {
   @UseGuards(GoogleOAuthGuard)
   async googleCallBack(
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: Response
   ): Promise<void> {
     const user = req.user;
     const accessToken = await this.authService.generateAccessToken(user);
@@ -79,7 +80,7 @@ export class AuthController {
   @Post("logout")
   @UseGuards(JwtAuthGuard)
   async logout(
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: Response
   ): Promise<{ message: string }> {
     res.clearCookie("accessToken", {
       httpOnly: true,
