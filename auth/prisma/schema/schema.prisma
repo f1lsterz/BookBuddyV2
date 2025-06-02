@@ -1,0 +1,40 @@
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String     @unique
+  name      String?
+  password  String?
+  photoUrl  String?
+  bio       String?
+  favouriteGenres Json?
+
+  friendRequestsSent FriendRequest[] @relation("sentRequests")
+  friendRequestsReceived FriendRequest[] @relation("receivedRequests")
+  comments Comment[]
+  commentReactions CommentReaction[]
+  clubMembership ClubMember? @relation("ClubMemberToUser")
+  bookRatings BookRating[]
+  libraries Library[]
+
+  @@index([email])
+}
+
+model FriendRequest {
+  id         Int  @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  status     String
+
+  sender   User @relation("sentRequests", fields: [senderId], references: [id])
+  receiver User @relation("receivedRequests", fields: [receiverId], references: [id])
+}

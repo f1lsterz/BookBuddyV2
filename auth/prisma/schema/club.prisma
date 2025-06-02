@@ -1,0 +1,26 @@
+model Club {
+    id       Int     @id @default(autoincrement())
+    name     String
+    description String?
+    memberCount Int @default(0)
+    imageUrl String?
+
+    members ClubMember[]
+}
+
+model ClubMember {
+  role ClubRole
+
+  userId Int @unique
+  clubId Int
+  user User @relation("ClubMemberToUser", fields: [userId], references: [id]) 
+  club Club @relation(fields: [clubId], references: [id])
+  
+  @@unique([userId, clubId])
+}
+
+enum ClubRole {
+    ADMIN
+    MEMBER
+}
+
