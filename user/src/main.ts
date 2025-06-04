@@ -1,29 +1,25 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import { setupMiddlewares } from "./config/middleware.config";
+import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
-import { AllExceptionsFilter } from "./common/filters/validation.filter";
-import { validationConfig } from "./config/validation.config";
-import { SwaggerModule } from "@nestjs/swagger";
-import { swaggerConfig } from "./config/swagger.config";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  setupMiddlewares(app, configService);
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      transport: Transport.RMQ,
+      options: {
+        urls: [process.env.RABBITMQ_URL || "amqp://localhost:5672"],
+        queue: "user_queue",
+        queueOptions: {
+          durable: false,
+        },
+      },
+    }
+  );
 
-  const port = configService.get<number>("config.server.port") || 3007;
-  const url =
-    configService.get<string>("config.server.url") || "http://localhost";
-
-  app.useGlobalPipes(validationConfig);
-  app.useGlobalFilters(new AllExceptionsFilter());
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("api", app, document);
-
-  await app.listen(port);
-  console.log(`✅ User Service started at ${url}:${port}`);
-  console.log(`📄 Swagger docs: ${url}:${port}/api`);
+  await app.listen();
+  console.log(`✅ User Microservice is listening via RabbitMQ`);
 }
+
 bootstrap();

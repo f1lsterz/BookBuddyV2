@@ -27,7 +27,7 @@ export class User {
   @Prop()
   bio?: string;
 
-  @Prop({ enum: Role, default: Role.USER })
+  @Prop({ required: true, enum: Role, default: Role.USER })
   role: Role;
 
   @Prop({ type: Object })

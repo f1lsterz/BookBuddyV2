@@ -37,3 +37,16 @@ export class Library {
 }
 
 export const LibrarySchema = SchemaFactory.createForClass(Library);
+export type LibraryBookDocument = HydratedDocument<LibraryBook>;
+
+@Schema({ timestamps: true })
+export class LibraryBook {
+  @Prop({ type: Types.ObjectId, ref: "Library", required: true })
+  libraryId: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, required: true })
+  bookId: Types.ObjectId;
+}
+
+export const LibraryBookSchema = SchemaFactory.createForClass(LibraryBook);
+LibraryBookSchema.index({ libraryId: 1, bookId: 1 }, { unique: true });

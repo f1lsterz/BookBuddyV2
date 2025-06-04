@@ -109,7 +109,7 @@ export class BookService {
   async toggleReaction(
     commentId: string,
     userId: string,
-    reactionType: "LIKE" | "DISLIKE"
+    reactionType: Reaction
   ): Promise<void> {
     if (!Types.ObjectId.isValid(commentId) || !Types.ObjectId.isValid(userId)) {
       throw ApiError.BadRequest("Invalid IDs");

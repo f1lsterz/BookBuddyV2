@@ -7,20 +7,17 @@ import config from "src/config/config";
 import { UserService } from "src/user/user.service";
 import { LoginDto } from "./dto/loginDto";
 import { RegistrationDto } from "./dto/registrationDto";
-import { User } from "@prisma/client";
-import { ApiError } from "src/common/errors/apiError";
-import { PrismaService } from "src/prisma.service";
+import { ApiError } from "../../api-gateway/src/common/errors/apiError";
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(config.KEY) private configService: ConfigType<typeof config>,
     private readonly userService: UserService,
-    private readonly jwtService: JwtService,
-    private readonly prisma: PrismaService
+    private readonly jwtService: JwtService
   ) {}
 
-  async validateGoogleUser(googleUser: GoogleUser): Promise<User> {
+  async validateGoogleUser(googleUser: GoogleUser) {
     const user = await this.userService.findUserByEmail(googleUser.email);
 
     if (user) return user;
@@ -33,7 +30,7 @@ export class AuthService {
     });
   }
 
-  async login(loginDto: LoginDto): Promise<{ UserWithTokens }> {
+  async login(loginDto: LoginDto): Promise<{ accessToken: string; user: any }> {
     const { email, password } = loginDto;
     const user = await this.userService.findUserByEmail(email);
 
@@ -41,19 +38,22 @@ export class AuthService {
       throw ApiError.Unauthorized("Invalid email or password");
     }
 
-    if (user && user.password === "") {
+    if (user.password === "") {
       throw ApiError.Unauthorized("Please login with Google");
     }
 
-    const accessToken = await this.generateAccessToken(user);
-
-    return { user, accessToken };
+    const tokens = await this.generateTokens(user);
+    return { accessToken: tokens.accessToken, user };
   }
 
   async registration(
     registrationDto: RegistrationDto
-  ): Promise<{ accessToken: string; user: User }> {
+  ): Promise<{ accessToken: string; user: any }> {
     const { email, password, name } = registrationDto;
+
+    const existing = await this.userService.findUserByEmail(email);
+    if (existing)
+      throw ApiError.BadRequest("User with this email already exists");
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await this.userService.createUser({
@@ -62,9 +62,8 @@ export class AuthService {
       name,
     });
 
-    const accessToken = await this.generateAccessToken(user);
-
-    return { user, accessToken };
+    const tokens = await this.generateTokens(user);
+    return { accessToken: tokens.accessToken, user };
   }
 
   private async validatePassword(
@@ -74,8 +73,12 @@ export class AuthService {
     return await bcrypt.compare(password, userPassword);
   }
 
-  async generateTokens(user: User): Promise<AuthTokens> {
-    const payload = { email: user.email, sub: user.id, role: user.role };
+  async generateTokens(user: any): Promise<AuthTokens> {
+    const payload = {
+      email: user.email,
+      sub: user._id.toString(),
+      role: user.role,
+    };
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: this.configService.secret,

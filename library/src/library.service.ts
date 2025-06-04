@@ -3,21 +3,20 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import {
   Library,
+  LibraryBook,
+  LibraryBookDocument,
   LibraryDocument,
   LibraryStatus,
   LibraryVisibility,
 } from "schemas/library.schema";
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
-import { LibraryBook, LibraryBookDocument } from "schemas/library-book.schema";
-import { Book, BookDocument } from "schemas/book.schema";
 
 @Injectable()
 export class LibraryService {
   constructor(
     @InjectModel(Library.name) private libraryModel: Model<LibraryDocument>,
     @InjectModel(LibraryBook.name)
-    private libraryBookModel: Model<LibraryBookDocument>,
-    @InjectModel(Book.name) private bookModel: Model<BookDocument>
+    private libraryBookModel: Model<LibraryBookDocument>
   ) {}
 
   async getLibrary(userId: string): Promise<Library | null> {
@@ -60,7 +59,7 @@ export class LibraryService {
     return library;
   }
 
-  async getBooksInLibrary(userId: string, libraryId: string): Promise<Book[]> {
+  async getBooksInLibrary(userId: string, libraryId: string) {
     const library = await this.libraryModel
       .findOne({
         _id: libraryId,

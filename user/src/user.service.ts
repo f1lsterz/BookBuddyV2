@@ -8,6 +8,7 @@ import { ApiError } from "../../api-gateway/src/common/errors/apiError";
 import {
   FriendRequest,
   FriendRequestDocument,
+  Status,
 } from "schemas/friend.request.schema";
 
 @Injectable()
@@ -18,7 +19,7 @@ export class UserService {
     private readonly friendRequestModel: Model<FriendRequestDocument>
   ) {}
 
-  async findUserById(id: string): Promise<User> {
+  async findUserById(id: string): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(id)) {
       throw ApiError.BadRequest("Invalid user ID");
     }
@@ -31,7 +32,7 @@ export class UserService {
     return user;
   }
 
-  async findUserByEmail(email: string): Promise<User> {
+  async findUserByEmail(email: string): Promise<UserDocument> {
     if (!email) {
       throw ApiError.BadRequest("Email is required");
     }
@@ -49,7 +50,7 @@ export class UserService {
     return users;
   }
 
-  async createUser(createUserDto: CreateUserDto): Promise<User> {
+  async createUser(createUserDto: CreateUserDto): Promise<UserDocument> {
     const { email } = createUserDto;
 
     const existing = await this.userModel.findOne({ email }).exec();
@@ -99,7 +100,7 @@ export class UserService {
     const existing = await this.friendRequestModel.findOne({
       senderId,
       receiverId,
-      status: "pending",
+      status: Status.PENDING,
     });
     if (existing) throw ApiError.BadRequest("Friend request already sent");
 
@@ -109,7 +110,7 @@ export class UserService {
     const request = await this.friendRequestModel.create({
       senderId,
       receiverId,
-      status: "pending",
+      status: Status.PENDING,
     });
 
     return request;
@@ -124,7 +125,6 @@ export class UserService {
       this.findUserById(String(request.receiverId)),
     ]);
 
-    // Add each other as friends
     await Promise.all([
       this.userModel.findByIdAndUpdate(sender._id, {
         $addToSet: { friends: receiver._id },
@@ -134,7 +134,7 @@ export class UserService {
       }),
     ]);
 
-    request.status = "accepted";
+    request.status = Status.ACCEPTED;
     await request.save();
 
     return { message: "Friend request accepted" };
@@ -144,11 +144,11 @@ export class UserService {
     const request = await this.friendRequestModel.findById(requestId);
     if (!request) throw ApiError.NotFound("Friend request not found");
 
-    if (request.status !== "pending") {
+    if (request.status !== Status.PENDING) {
       throw ApiError.BadRequest("Friend request is already processed");
     }
 
-    request.status = "declined";
+    request.status = Status.DECLINED;
     await request.save();
 
     return { message: "Friend request declined" };
@@ -156,7 +156,7 @@ export class UserService {
 
   async getPendingFriendRequests(receiverId: string) {
     const requests = await this.friendRequestModel
-      .find({ receiverId, status: "pending" })
+      .find({ receiverId, status: Status.PENDING })
       .populate("senderId", "name photoUrl");
 
     return requests.map((r) => ({
