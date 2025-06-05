@@ -1,36 +1,29 @@
 import { registerAs } from "@nestjs/config";
 
 export default registerAs("config", () => ({
-  server: {
-    port: process.env.SERVER_PORT || 3000,
-    url: process.env.SERVER_URL || "http://localhost",
+  socket: {
+    chatPort: process.env.SOCKET_CHAT_PORT,
   },
   database: {
-    url:
-      process.env.DATABASE_URL ||
-      "mysql://root:123456@localhost:3306/bookbuddy",
+    url: process.env.DATABASE_URL,
   },
-  secret: process.env.JWT_SECRET || "bookbuddy",
+  secret: process.env.JWT_SECRET,
   signOptions: {
-    expiresIn: process.env.JWT_EXPIRES_IN || "1d",
+    expiresIn: process.env.JWT_EXPIRES_IN,
   },
   refreshSignOptions: {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
-  },
-  socket: {
-    chatPort: process.env.SOCKET_CHAT_PORT || 3001,
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
   },
   client: {
-    url: process.env.CLIENT_URL || "http://localhost:5173",
+    url: process.env.CLIENT_URL,
   },
   redis: {
-    host: process.env.REDIS_HOST || "localhost",
-    port: process.env.REDIS_PORT || 6379,
-    cachePrefix: process.env.CACHE_PREFIX || "book-cache",
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    cachePrefix: process.env.CACHE_PREFIX,
   },
-  google: {
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL,
+    queue: process.env.RABBITMQ_QUEUE,
   },
 }));

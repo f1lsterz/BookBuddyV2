@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import {
@@ -10,13 +10,16 @@ import {
   LibraryVisibility,
 } from "schemas/library.schema";
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
+import { ClientProxy } from "@nestjs/microservices";
+import { firstValueFrom } from "rxjs";
 
 @Injectable()
 export class LibraryService {
   constructor(
     @InjectModel(Library.name) private libraryModel: Model<LibraryDocument>,
     @InjectModel(LibraryBook.name)
-    private libraryBookModel: Model<LibraryBookDocument>
+    private libraryBookModel: Model<LibraryBookDocument>,
+    @Inject("BOOK_SERVICE") private readonly bookClient: ClientProxy
   ) {}
 
   async getLibrary(userId: string): Promise<Library | null> {
@@ -93,12 +96,15 @@ export class LibraryService {
     libraryId: string
   ): Promise<LibraryBook> {
     const library = await this.libraryModel.findById(libraryId).exec();
-    if (!library)
+    if (!library) {
       throw ApiError.BadRequest(
         "Library not found or does not belong to this user"
       );
+    }
 
-    const book = await this.bookModel.findById(bookId).exec();
+    const book = await firstValueFrom(
+      this.bookClient.send({ cmd: "get-book-by-id" }, bookId)
+    );
     if (!book) throw ApiError.BadRequest("Book not found");
 
     const exists = await this.libraryBookModel
@@ -115,10 +121,7 @@ export class LibraryService {
     return libraryBook;
   }
 
-  async removeBookFromLibrary(
-    bookId: string,
-    libraryId: string
-  ): Promise<LibraryBook> {
+  async removeBookFromLibrary(bookId: string, libraryId: string) {
     const library = await this.libraryModel.findById(libraryId).exec();
     if (!library)
       throw ApiError.BadRequest(
@@ -126,7 +129,7 @@ export class LibraryService {
       );
 
     const libraryBook = await this.libraryBookModel
-      .findOneAndDelete({
+      .findOne({
         bookId,
         libraryId,
       })
@@ -135,6 +138,8 @@ export class LibraryService {
     if (!libraryBook) {
       throw ApiError.BadRequest("Book not found in the library");
     }
+
+    await this.libraryBookModel.deleteOne({ _id: libraryBook._id });
 
     await this.libraryModel.findByIdAndUpdate(libraryId, {
       $pull: { books: libraryBook._id },

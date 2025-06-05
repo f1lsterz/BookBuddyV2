@@ -6,12 +6,20 @@ import { createKeyv } from "@keyv/redis";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { TimeoutInterceptor } from "../../api-gateway/src/common/interceptors/timeout.interceptor";
 import { LibraryModule } from "./library.module";
+import { MongooseModule } from "@nestjs/mongoose";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       load: [config],
       isGlobal: true,
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>("config.database.url"),
+      }),
+      inject: [ConfigService],
     }),
     CacheModule.registerAsync({
       imports: [ConfigModule],
