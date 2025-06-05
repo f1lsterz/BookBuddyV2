@@ -1,6 +1,19 @@
 version: "3.8"
 
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    restart: always
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
   redis:
     image: redis:latest
     container_name: redis_cache
@@ -14,10 +27,9 @@ services:
   mongo-user-service:
     image: mongo:6
     container_name: mongo-user-service
+    restart: always
     ports:
       - "27017:27017"
-    env_file:
-      - ./user/.env
     volumes:
       - mongo-user-data:/data/db
 
@@ -62,8 +74,17 @@ services:
       - mongo-chat-data:/data/db
 
 volumes:
+  rabbitmq_data:
+    driver: local
   mongo-user-data:
+    driver: local
   mongo-club-data:
+    driver: local
   mongo-library-data:
+    driver: local
   mongo-book-data:
+    driver: local
   mongo-chat-data:
+    driver: local
+  redis_data:
+    driver: local

@@ -1,7 +1,15 @@
-import { Controller } from "@nestjs/common";
-import { ClubService } from "./club.service";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 
 @Controller("club")
 export class ClubController {
-  constructor(private readonly clubService: ClubService) {}
+  constructor() {}
 }

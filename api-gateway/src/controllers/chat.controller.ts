@@ -8,7 +8,7 @@ import {
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
-import { ChatService } from "./chat.service";
+import { ChatService } from "../../../chat/src/chat.service";
 import { AWSService } from "../aws/aws.service";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { SendMessageDto } from "./dto/send.message.dto";

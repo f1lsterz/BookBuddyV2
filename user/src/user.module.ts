@@ -1,12 +1,12 @@
 import { Module } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { UserController } from "./user.controller";
 import { MongooseModule } from "@nestjs/mongoose";
 import { User, UserSchema } from "schemas/user.schema";
 import {
   FriendRequest,
   FriendRequestSchema,
 } from "schemas/friend.request.schema";
+import { UserListener } from "./user.listener";
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import {
       { name: FriendRequest.name, schema: FriendRequestSchema },
     ]),
   ],
-  controllers: [UserController],
+  controllers: [UserListener],
   providers: [UserService],
 })
 export class UserModule {}

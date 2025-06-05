@@ -157,14 +157,18 @@ export class UserService {
   async getPendingFriendRequests(receiverId: string) {
     const requests = await this.friendRequestModel
       .find({ receiverId, status: Status.PENDING })
-      .populate("senderId", "name photoUrl");
+      .populate<{ senderId: UserDocument }>("senderId", "name photoUrl") // уточнюємо тип результату populate
+      .exec();
 
-    return requests.map((r) => ({
-      id: r._id,
-      senderId: r.senderId._id,
-      name: r.senderId.name,
-      profileImage: r.senderId.photoUrl,
-    }));
+    return requests.map((r) => {
+      const sender = r.senderId as UserDocument; // явно кастимо до UserDocument
+      return {
+        id: r._id,
+        senderId: sender._id,
+        name: sender.name,
+        profileImage: sender.photoUrl,
+      };
+    });
   }
 
   async getFriends(userId: string) {

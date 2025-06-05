@@ -6,6 +6,7 @@ import { createKeyv } from "@keyv/redis";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { TimeoutInterceptor } from "../../api-gateway/src/common/interceptors/timeout.interceptor";
 import { UserModule } from "./user.module";
+import { MongooseModule } from "@nestjs/mongoose";
 
 @Module({
   imports: [
@@ -13,18 +14,21 @@ import { UserModule } from "./user.module";
       load: [config],
       isGlobal: true,
     }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>("config.database.url"),
+      }),
+      inject: [ConfigService],
+    }),
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       isGlobal: true,
       useFactory: async (configService: ConfigService) => {
-        const redisHost = configService.get<string>(
-          "config.redis.host",
-          "localhost"
-        );
-        const redisPort = configService.get<number>("config.redis.port", 6379);
+        const redis = configService.get("config.redis");
         return {
-          stores: [createKeyv(`redis://${redisHost}:${redisPort}`)],
+          stores: [createKeyv(`redis://${redis.host}:${redis.port}`)],
           compression: true,
         };
       },

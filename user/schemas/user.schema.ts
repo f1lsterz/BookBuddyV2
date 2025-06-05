@@ -30,8 +30,8 @@ export class User {
   @Prop({ required: true, enum: Role, default: Role.USER })
   role: Role;
 
-  @Prop({ type: Object })
-  favouriteGenres?: Record<string, any>;
+  @Prop({ type: [String], default: [] })
+  favouriteGenres?: string[];
 
   @Prop({ type: [{ type: Types.ObjectId, ref: "User" }] })
   friends: Types.ObjectId[];

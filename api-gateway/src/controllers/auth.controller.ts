@@ -8,10 +8,10 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { AuthService } from "./auth.service";
+import { AuthService } from "../../../auth/src/auth.service";
 import { Response, Request } from "express";
-import { LoginDto } from "./dto/loginDto";
-import { RegistrationDto } from "./dto/registrationDto";
+import { LoginDto } from "../../../auth/src/dto/loginDto";
+import { RegistrationDto } from "../../../auth/src/dto/registrationDto";
 import { GoogleOAuthGuard } from "src/common/guards/googleOAuth.guard";
 import { JwtAuthGuard } from "src/common/guards/jwtAuth.guard";
 import { User } from "@prisma/client";

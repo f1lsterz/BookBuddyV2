@@ -1,11 +1,15 @@
-import { Controller } from "@nestjs/common";
-import { LibraryService } from "./library.service";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 
 @Controller("library")
 export class LibraryController {
-  constructor(private readonly libraryService: LibraryService) {}
-
-  async getLibrary(): Promise<> {
-    return;
-  }
+  constructor() {}
 }

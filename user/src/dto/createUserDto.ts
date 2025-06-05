@@ -1,26 +1,42 @@
 import {
   IsEmail,
-  IsNotEmpty,
+  IsEnum,
   IsOptional,
   IsString,
-  Length,
+  MinLength,
+  IsArray,
 } from "class-validator";
+import { Transform } from "class-transformer";
+import { Role } from "schemas/user.schema";
 
 export class CreateUserDto {
   @IsEmail()
-  @IsNotEmpty()
   email: string;
-
-  @IsString()
-  @IsNotEmpty()
-  //@Length(6,20)
-  password: string;
-
-  @IsString()
-  @IsNotEmpty()
-  name: string;
 
   @IsOptional()
   @IsString()
-  photoUrl?: String;
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string;
+
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @IsOptional()
+  @IsEnum(Role)
+  role?: Role;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  favouriteGenres?: string[];
 }

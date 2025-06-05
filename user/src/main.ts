@@ -1,25 +1,46 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import { MicroserviceOptions, Transport } from "@nestjs/microservices";
+import {
+  MicroserviceOptions,
+  RmqOptions,
+  Transport,
+} from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
+import { validationConfig } from "../../api-gateway/src/config/validation.config";
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.RMQ,
-      options: {
-        urls: [process.env.RABBITMQ_URL || "amqp://localhost:5672"],
-        queue: "user_queue",
-        queueOptions: {
-          durable: false,
-        },
-      },
-    }
-  );
+  const appContext = await NestFactory.createApplicationContext(AppModule);
+  const configService = appContext.get<ConfigService>(ConfigService);
 
-  await app.listen();
-  console.log(`✅ User Microservice is listening via RabbitMQ`);
+  const rmqUrl =
+    configService.get<string>("config.rabbitmq.url") ||
+    "amqp://user:password@localhost:5672";
+  const rmqQueue =
+    configService.get<string>("config.rabbitmq.queue") || "user_queue";
+
+  const rmqOptions: RmqOptions = {
+    transport: Transport.RMQ,
+    options: {
+      urls: [rmqUrl],
+      queue: rmqQueue,
+      queueOptions: {
+        durable: false,
+      },
+    },
+  };
+
+  const microservice =
+    await NestFactory.createMicroservice<MicroserviceOptions>(
+      AppModule,
+      rmqOptions
+    );
+
+  microservice.useGlobalPipes(validationConfig);
+
+  await microservice.listen();
+  console.log(
+    `✅ User Microservice is listening via RabbitMQ at queue "${rmqQueue}"`
+  );
 }
 
 bootstrap();
