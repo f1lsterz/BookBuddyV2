@@ -1,6 +1,10 @@
 import { Controller } from "@nestjs/common";
 import { MessagePattern, Payload } from "@nestjs/microservices";
 import { UserService } from "./user.service";
+import { CreateUserDto } from "./dto/createUserDto";
+import { UpdateUserDto } from "./dto/updateUserDto";
+import { SendFriendRequestDto } from "./dto/send.friend.dto";
+import { RemoveFriendDto } from "./dto/remove.friend.dto";
 
 @Controller()
 export class UserListener {
@@ -17,12 +21,12 @@ export class UserListener {
   }
 
   @MessagePattern({ cmd: "create-user" })
-  async createUser(@Payload() createUserDto: any) {
+  async createUser(@Payload() createUserDto: CreateUserDto) {
     return this.userService.createUser(createUserDto);
   }
 
   @MessagePattern({ cmd: "update-user" })
-  async updateUser(@Payload() payload: { id: string; dto: any }) {
+  async updateUser(@Payload() payload: { id: string; dto: UpdateUserDto }) {
     return this.userService.updateUser(payload.id, payload.dto);
   }
 
@@ -32,13 +36,8 @@ export class UserListener {
   }
 
   @MessagePattern({ cmd: "send-friend-request" })
-  async sendFriendRequest(
-    @Payload() payload: { senderId: string; receiverId: string }
-  ) {
-    return this.userService.sendFriendRequest(
-      payload.senderId,
-      payload.receiverId
-    );
+  async sendFriendRequest(@Payload() dto: SendFriendRequestDto) {
+    return this.userService.sendFriendRequest(dto);
   }
 
   @MessagePattern({ cmd: "accept-friend-request" })
@@ -62,7 +61,7 @@ export class UserListener {
   }
 
   @MessagePattern({ cmd: "remove-friend" })
-  async removeFriend(@Payload() payload: { userId1: string; userId2: string }) {
-    return this.userService.removeFriend(payload.userId1, payload.userId2);
+  async removeFriend(@Payload() dto: RemoveFriendDto) {
+    return this.userService.removeFriend(dto);
   }
 }
