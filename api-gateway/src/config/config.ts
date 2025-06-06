@@ -28,6 +28,9 @@ export default registerAs("config", () => ({
     port: process.env.REDIS_PORT || 6379,
     cachePrefix: process.env.CACHE_PREFIX || "book-cache",
   },
+  rabbitmq: {
+    url: process.env.RABBITMQ_URL,
+  },
   google: {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,

@@ -2,8 +2,9 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ConfigType } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { Profile, Strategy, VerifyCallback } from "passport-google-oauth20";
-import { AuthService } from "../../../../auth/src/auth.service";
+import { AuthService } from "src/auth.service";
 import config from "src/config/config";
+import { ApiError } from "../../../../api-gateway/src/common/errors/apiError";
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
@@ -11,25 +12,41 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
     @Inject(config.KEY) private configService: ConfigType<typeof config>,
     private readonly authService: AuthService
   ) {
+    const { clientID, clientSecret, callbackURL } = configService.google;
+
+    if (!clientID || !clientSecret || !callbackURL) {
+      throw ApiError.BadRequest("Google OAuth config is incomplete");
+    }
+
     super({
-      clientID: configService.google.clientID,
-      clientSecret: configService.google.clientSecret,
-      callbackURL: configService.google.callbackURL,
+      clientID,
+      clientSecret,
+      callbackURL,
       scope: ["email", "profile"],
+      passReqToCallback: false,
     });
   }
-
   async validate(
     _accessToken: string,
     _refreshToken: string,
     profile: Profile,
     done: VerifyCallback
   ): Promise<any> {
-    const { emails, displayName, photos } = profile;
+    const email = profile.emails?.[0]?.value;
+    const name = profile.displayName;
+    const photoUrl = profile.photos?.[0]?.value;
+
+    if (!email) {
+      return done(
+        ApiError.BadRequest("Google account does not have an email."),
+        false
+      );
+    }
+
     const user = await this.authService.validateGoogleUser({
-      email: emails[0]?.value,
-      name: displayName,
-      photoUrl: photos[0]?.value,
+      email,
+      name,
+      photoUrl,
       password: "",
     });
 

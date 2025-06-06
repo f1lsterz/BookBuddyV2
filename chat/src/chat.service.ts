@@ -1,63 +1,85 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../prisma.service";
 import { SendMessageDto } from "./dto/send.message.dto";
-import { CreateChatDto } from "./dto/create.chat.dto";
-import { ApiError } from "../common/errors/apiError";
+import { ApiError } from "../../api-gateway/src/common/errors/apiError";
+import { InjectModel } from "@nestjs/mongoose";
+import { ChatMessage, ChatMessageDocument } from "schemas/message.schema";
+import { Model, Types } from "mongoose";
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(ChatMessage.name)
+    private readonly chatMessageModel: Model<ChatMessageDocument>
+  ) {}
 
-  async createChat(createChatDto: CreateChatDto) {
-    return this.prisma.chat.create({
-      data: {
-        orderId: createChatDto.orderId,
-        type: createChatDto.type,
-        participants: {
-          create: createChatDto.participants.map((userId) => ({ userId })),
-        },
-      },
-    });
-  }
-
-  async sendMessage(sendMessageDto: SendMessageDto) {
-    if (!sendMessageDto.content && !sendMessageDto.imageUrl) {
-      throw ApiError.BadRequest(
-        "Повідомлення має містити текст або зображення"
-      );
+  async sendMessage(dto: SendMessageDto) {
+    if (!dto.message?.trim()) {
+      throw ApiError.BadRequest("Message cannot be empty");
     }
-    return this.prisma.message.create({
-      data: {
-        chatId: sendMessageDto.chatId,
-        userId: sendMessageDto.userId,
-        content: sendMessageDto.content,
-        imageUrl: sendMessageDto.imageUrl,
-      },
-      include: { user: true },
+
+    const message = new this.chatMessageModel({
+      clubId: new Types.ObjectId(dto.clubId),
+      userId: new Types.ObjectId(dto.userId),
+      message: dto.message,
     });
+
+    return message.save();
   }
 
-  async getMessages(chatId: number, page = 1, limit = 20) {
-    return this.prisma.message.findMany({
-      where: { chatId },
-      include: { user: true },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  async getMessagesByClub(clubId: string, limit = 50, skip = 0) {
+    if (!Types.ObjectId.isValid(clubId)) {
+      throw ApiError.BadRequest("Invalid club ID");
+    }
+
+    return this.chatMessageModel
+      .find({ clubId: new Types.ObjectId(clubId) })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
-  async getUserChats(userId: number) {
-    return this.prisma.chat.findMany({
-      where: { participants: { some: { userId } } },
-      include: {
-        messages: {
-          take: 1,
-          orderBy: { createdAt: "desc" },
-          include: { user: true },
-        },
-        participants: true,
-      },
+  async getMessagesByUser(userId: string, limit = 50, skip = 0) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw ApiError.BadRequest("Invalid user ID");
+    }
+
+    return this.chatMessageModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
+  async deleteMessage(messageId: string, userId: string) {
+    if (!Types.ObjectId.isValid(messageId)) {
+      throw ApiError.BadRequest("Invalid message ID");
+    }
+
+    const message = await this.chatMessageModel.findById(messageId);
+    if (!message) {
+      throw ApiError.NotFound("Message not found");
+    }
+
+    if (!message.userId.equals(userId)) {
+      throw ApiError.Forbidden("You can only delete your own messages");
+    }
+
+    await this.chatMessageModel.deleteOne({ _id: messageId });
+    return { success: true };
+  }
+
+  async clearMessagesByClub(clubId: string) {
+    if (!Types.ObjectId.isValid(clubId)) {
+      throw ApiError.BadRequest("Invalid club ID");
+    }
+
+    await this.chatMessageModel.deleteMany({
+      clubId: new Types.ObjectId(clubId),
     });
+    return { success: true };
   }
 }

@@ -17,7 +17,8 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const rabbitUrl =
-    configService.get<string>("config.rabbitmq.url") || "amqp://localhost:5672";
+    configService.get<string>("config.rabbitmq.url") ||
+    "amqp://user:password@localhost:5672";
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,

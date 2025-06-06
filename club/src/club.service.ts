@@ -7,7 +7,7 @@ import {
   ClubMember,
   ClubMemberDocument,
   ClubRole,
-} from "schemas/club.schema";
+} from "../schemas/club.schema";
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
 
 @Injectable()
@@ -22,7 +22,7 @@ export class ClubService {
     name: string,
     description: string,
     userId: string,
-    imageFile?: Express.Multer.File
+    imageFile?
   ) {
     if (await this.isUserInAnyClub(userId)) {
       throw ApiError.BadRequest(
@@ -30,7 +30,7 @@ export class ClubService {
       );
     }
 
-    let imageUrl = null;
+    let imageUrl: string | undefined;
     if (imageFile) {
       imageUrl = `/uploads/${imageFile.filename}`;
     }
@@ -83,7 +83,7 @@ export class ClubService {
     clubId: string,
     name?: string,
     description?: string,
-    imageFile?: Express.Multer.File
+    imageFile?
   ) {
     const club = await this.clubModel.findById(clubId).exec();
     if (!club) {
@@ -147,19 +147,28 @@ export class ClubService {
   }
 
   async leaveFromClub(clubId: string, userId: string) {
-    const membership = await this.clubMemberModel.findOneAndDelete({
+    const membership = await this.clubMemberModel.findOne({
       userId: new Types.ObjectId(userId),
       clubId: new Types.ObjectId(clubId),
     });
 
-    if (!membership) {
+    if (!membership || !membership._id) {
       throw ApiError.NotFound("Member not found in this club");
     }
 
-    await this.clubModel.findByIdAndUpdate(clubId, {
-      $inc: { memberCount: -1 },
-      $pull: { members: membership._id },
-    });
+    await this.clubMemberModel.deleteOne({ _id: membership._id });
+
+    const club = await this.clubModel.findById(clubId);
+    if (!club) {
+      throw ApiError.NotFound("Club not found");
+    }
+
+    club.memberCount -= 1;
+    club.members = club.members.filter(
+      (memberId: Types.ObjectId) => !memberId.equals(membership._id)
+    );
+
+    await club.save();
   }
 
   async removeMemberFromClub(clubId: string, userId: string) {
@@ -168,24 +177,27 @@ export class ClubService {
       throw ApiError.BadRequest("User is not a member of this club");
     }
 
-    const membership = await this.clubMemberModel.findOneAndDelete({
+    const membership = await this.clubMemberModel.findOne({
       userId: new Types.ObjectId(userId),
       clubId: new Types.ObjectId(clubId),
     });
 
-    if (!membership) {
+    if (!membership || !membership._id) {
       throw ApiError.NotFound("Member not found");
     }
 
-    await this.clubModel.findByIdAndUpdate(clubId, {
-      $inc: { memberCount: -1 },
-      $pull: { members: membership._id },
-    });
-  }
+    await this.clubMemberModel.deleteOne({ _id: membership._id });
 
-  async getClubMembers(clubId: string) {
-    return this.clubMemberModel.find({
-      clubId: new Types.ObjectId(clubId),
-    });
+    const club = await this.clubModel.findById(clubId);
+    if (!club) {
+      throw ApiError.NotFound("Club not found");
+    }
+
+    club.memberCount -= 1;
+    club.members = club.members.filter(
+      (memberId: Types.ObjectId) => !memberId.equals(membership._id)
+    );
+
+    await club.save();
   }
 }

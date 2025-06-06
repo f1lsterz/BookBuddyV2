@@ -10,6 +10,6 @@ import {
 } from "@nestjs/common";
 
 @Controller("club")
-export class ClubController {
+export class ClubListener {
   constructor() {}
 }

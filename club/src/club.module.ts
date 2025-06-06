@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ClubService } from "./club.service";
-import { ClubController } from "./club.controller";
+import { ClubListener } from "./club.listener";
 import { MongooseModule } from "@nestjs/mongoose";
 import {
   Club,
@@ -16,7 +16,7 @@ import {
       { name: ClubMember.name, schema: ClubMemberSchema },
     ]),
   ],
-  controllers: [ClubController],
+  controllers: [ClubListener],
   providers: [ClubService],
 })
 export class ClubModule {}
