@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import {
@@ -9,10 +9,14 @@ import {
   ClubRole,
 } from "../schemas/club.schema";
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { CACHE_CLUBS } from "./config/cache.keys";
 
 @Injectable()
 export class ClubService {
   constructor(
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
     @InjectModel(ClubMember.name)
     private clubMemberModel: Model<ClubMemberDocument>
@@ -22,18 +26,16 @@ export class ClubService {
     name: string,
     description: string,
     userId: string,
-    imageFile?
+    imageFile?: Express.Multer.File
   ) {
     if (await this.isUserInAnyClub(userId)) {
-      throw ApiError.BadRequest(
-        "User is already a member of another club and cannot create a new club."
-      );
+      throw ApiError.BadRequest("User is already in a club");
     }
 
-    let imageUrl: string | undefined;
-    if (imageFile) {
-      imageUrl = `/uploads/${imageFile.filename}`;
-    }
+    const gatewayBaseUrl = process.env.GATEWAY_URL || "http://localhost:3000";
+    const imageUrl = imageFile
+      ? `${gatewayBaseUrl}/uploads/${imageFile.filename}`
+      : undefined;
 
     const club = new this.clubModel({
       name,
@@ -54,28 +56,47 @@ export class ClubService {
     club.members.push(member._id);
     await club.save();
 
+    await this.cacheManager.del(CACHE_CLUBS.ALL_CLUBS);
+
     return club;
   }
 
   async searchClubs(query?: string, filterFull?: boolean) {
     const maxMembers = Number(process.env.MAX_MEMBER_COUNT) || 50;
+    const cacheKey = CACHE_CLUBS.SEARCH_CLUBS(query || "", filterFull || false);
+    const cached = await this.cacheManager.get<ClubDocument[]>(cacheKey);
+    if (cached) return cached;
 
     const filter: any = {};
     if (query) filter.name = { $regex: query, $options: "i" };
     if (filterFull) filter.memberCount = { $lt: maxMembers };
 
-    return this.clubModel.find(filter).exec();
+    const clubs = await this.clubModel.find(filter).exec();
+    await this.cacheManager.set(cacheKey, clubs, 3600);
+    return clubs;
   }
 
   async getAllClubs() {
-    return this.clubModel.find().exec();
+    const cacheKey = CACHE_CLUBS.ALL_CLUBS;
+    const cached = await this.cacheManager.get<ClubDocument[]>(cacheKey);
+    if (cached) return cached;
+
+    const clubs = await this.clubModel.find().exec();
+    await this.cacheManager.set(cacheKey, clubs, 3600);
+    return clubs;
   }
 
   async getClub(clubId: string) {
+    const cacheKey = CACHE_CLUBS.CLUB(clubId);
+    const cached = await this.cacheManager.get<ClubDocument>(cacheKey);
+    if (cached) return cached;
+
     const club = await this.clubModel.findById(clubId).exec();
     if (!club) {
       throw ApiError.NotFound("Club not found");
     }
+
+    await this.cacheManager.set(cacheKey, club, 3600);
     return club;
   }
 
@@ -94,6 +115,9 @@ export class ClubService {
     if (description) club.description = description;
     if (imageFile) club.imageUrl = `/uploads/${imageFile.filename}`;
 
+    await this.cacheManager.del(CACHE_CLUBS.CLUB(clubId));
+    await this.cacheManager.del(CACHE_CLUBS.ALL_CLUBS);
+
     return club.save();
   }
 
@@ -104,6 +128,8 @@ export class ClubService {
     }
 
     await this.clubMemberModel.deleteMany({ clubId: club._id }).exec();
+    await this.cacheManager.del(CACHE_CLUBS.CLUB(clubId));
+    await this.cacheManager.del(CACHE_CLUBS.ALL_CLUBS);
     return this.clubModel.findByIdAndDelete(club._id).exec();
   }
 

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
 import { InjectModel } from "@nestjs/mongoose";
 import {
@@ -15,10 +15,14 @@ import {
   Reaction,
 } from "schemas/comment.schema";
 import { Model, Types } from "mongoose";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { CACHE_BOOKS } from "./config/cache.keys";
 
 @Injectable()
 export class BookService {
   constructor(
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     @InjectModel(Book.name) private readonly bookModel: Model<BookDocument>,
     @InjectModel(BookRating.name)
     private bookRatingModel: Model<BookRatingDocument>,
@@ -26,6 +30,7 @@ export class BookService {
     @InjectModel(CommentReaction.name)
     private commentReactionModel: Model<CommentReactionDocument>
   ) {}
+
   async countBooks(): Promise<number> {
     return this.bookModel.countDocuments().exec();
   }
@@ -37,20 +42,33 @@ export class BookService {
     order: "asc" | "desc" = "asc",
     query = ""
   ): Promise<Book[]> {
+    const key = CACHE_BOOKS.BOOK_LIST(page, limit, query);
+    const cached = await this.cacheManager.get<Book[]>(key);
+    if (cached) return cached;
+
     const skip = (page - 1) * limit;
     const sortOrder = order === "asc" ? 1 : -1;
 
-    return this.bookModel
+    const books = await this.bookModel
       .find({ title: { $regex: query, $options: "i" } })
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
       .limit(limit)
       .exec();
+
+    await this.cacheManager.set(key, books, 3600);
+    return books;
   }
 
   async getBookById(bookId: string): Promise<BookDocument | null> {
     if (!Types.ObjectId.isValid(bookId)) return null;
-    return this.bookModel.findById(bookId).exec();
+    const key = CACHE_BOOKS.BOOK(bookId);
+    const cached = await this.cacheManager.get<BookDocument>(key);
+    if (cached) return cached;
+
+    const book = await this.bookModel.findById(bookId).exec();
+    await this.cacheManager.set(key, book, 3600);
+    return book;
   }
 
   async addCommentToBook(
@@ -75,14 +93,23 @@ export class BookService {
       .findByIdAndUpdate(bookId, { $inc: { commentCount: 1 } })
       .exec();
 
+    await this.cacheManager.del(CACHE_BOOKS.COMMENTS(bookId));
+
     return comment;
   }
 
   async getCommentsForBook(bookId: string): Promise<CommentDocument[]> {
     if (!Types.ObjectId.isValid(bookId)) return [];
-    return this.commentModel
+    const key = CACHE_BOOKS.COMMENTS(bookId);
+    const cached = await this.cacheManager.get<CommentDocument[]>(key);
+    if (cached) return cached;
+
+    const comments = await this.commentModel
       .find({ bookId: new Types.ObjectId(bookId) })
       .exec();
+
+    await this.cacheManager.set(key, comments, 3600);
+    return comments;
   }
 
   async deleteComment(
@@ -103,7 +130,13 @@ export class BookService {
       .findByIdAndUpdate(comment.bookId, { $inc: { commentCount: -1 } })
       .exec();
 
-    return this.commentModel.findByIdAndDelete(commentId).exec();
+    await this.commentModel.findByIdAndDelete(commentId).exec();
+
+    await this.cacheManager.del(
+      CACHE_BOOKS.COMMENTS(comment.bookId.toString())
+    );
+
+    return comment;
   }
 
   async toggleReaction(

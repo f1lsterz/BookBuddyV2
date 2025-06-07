@@ -1,6 +1,9 @@
 import { Controller } from "@nestjs/common";
 import { MessagePattern, Payload } from "@nestjs/microservices";
 import { BookService } from "./book.service";
+import { GetBooksDto } from "./dto/get.books.dto";
+import { AddCommentDto } from "./dto/add.comment.dto";
+import { ToggleReactionDto } from "./dto/toggle.reaction.dto";
 
 @Controller()
 export class BookListener {
@@ -12,23 +15,8 @@ export class BookListener {
   }
 
   @MessagePattern({ cmd: "get-books" })
-  async getBooks(
-    @Payload()
-    payload: {
-      page?: number;
-      limit?: number;
-      sortBy?: string;
-      order?: "asc" | "desc";
-      query?: string;
-    }
-  ) {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = "title",
-      order = "asc",
-      query = "",
-    } = payload;
+  async getBooks(@Payload() dto: GetBooksDto) {
+    const { page, limit, sortBy, order, query } = dto;
     return this.bookService.getBooks(page, limit, sortBy, order, query);
   }
 
@@ -38,16 +26,12 @@ export class BookListener {
   }
 
   @MessagePattern({ cmd: "add-comment-to-book" })
-  async addCommentToBook(
-    @Payload()
-    payload: {
-      bookId: string;
-      userId: string;
-      commentText: string;
-    }
-  ) {
-    const { bookId, userId, commentText } = payload;
-    return this.bookService.addCommentToBook(bookId, userId, commentText);
+  async addCommentToBook(@Payload() dto: AddCommentDto) {
+    return this.bookService.addCommentToBook(
+      dto.bookId,
+      dto.userId,
+      dto.commentText
+    );
   }
 
   @MessagePattern({ cmd: "get-comments-for-book" })
@@ -64,19 +48,11 @@ export class BookListener {
   }
 
   @MessagePattern({ cmd: "toggle-reaction" })
-  async toggleReaction(
-    @Payload()
-    payload: {
-      commentId: string;
-      userId: string;
-      reactionType: string;
-    }
-  ) {
-    const { commentId, userId, reactionType } = payload;
+  async toggleReaction(@Payload() dto: ToggleReactionDto) {
     return this.bookService.toggleReaction(
-      commentId,
-      userId,
-      reactionType as any
+      dto.commentId,
+      dto.userId,
+      dto.reactionType
     );
   }
 

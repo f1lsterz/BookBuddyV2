@@ -7,9 +7,16 @@ import { validationConfig } from "../../api-gateway/src/config/validation.config
 import { SwaggerModule } from "@nestjs/swagger";
 import { swaggerConfig } from "./config/swagger.config";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
+import { join } from "path";
+import { NestExpressApplication } from "@nestjs/platform-express";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.useStaticAssets(join(__dirname, "..", "uploads"), {
+    prefix: "/uploads/",
+  });
+
   const configService = app.get(ConfigService);
 
   setupMiddlewares(app, configService);

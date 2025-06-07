@@ -12,10 +12,14 @@ import {
 import { ApiError } from "../../api-gateway/src/common/errors/apiError";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { CACHE_LIBRARY } from "./config/cache.keys";
 
 @Injectable()
 export class LibraryService {
   constructor(
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     @InjectModel(Library.name) private libraryModel: Model<LibraryDocument>,
     @InjectModel(LibraryBook.name)
     private libraryBookModel: Model<LibraryBookDocument>,
@@ -23,9 +27,15 @@ export class LibraryService {
   ) {}
 
   async getLibrary(userId: string): Promise<Library | null> {
-    return this.libraryModel
+    const cacheKey = CACHE_LIBRARY.LIBRARY(userId);
+    const cached = await this.cacheManager.get<Library>(cacheKey);
+    if (cached) return cached;
+
+    const lib = await this.libraryModel
       .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
+    await this.cacheManager.set(cacheKey, lib, 3600);
+    return lib;
   }
 
   async createCustomLibrary(
@@ -39,7 +49,12 @@ export class LibraryService {
       visibility,
       status: LibraryStatus.CUSTOM,
     });
-    return library.save();
+    const saved = await library.save();
+
+    await this.cacheManager.del(CACHE_LIBRARY.LIBRARY(userId));
+    await this.cacheManager.del(CACHE_LIBRARY.CUSTOM_LIBRARIES(userId));
+
+    return saved;
   }
 
   async deleteCustomLibrary(
@@ -58,37 +73,48 @@ export class LibraryService {
       );
     }
 
+    await Promise.all([
+      this.cacheManager.del(CACHE_LIBRARY.LIBRARY(userId)),
+      this.cacheManager.del(CACHE_LIBRARY.CUSTOM_LIBRARIES(userId)),
+      this.cacheManager.del(CACHE_LIBRARY.BOOKS(libraryId)),
+    ]);
     await this.libraryModel.deleteOne({ _id: libraryId });
     return library;
   }
 
-  async getBooksInLibrary(userId: string, libraryId: string) {
+  async getBooksInLibrary(userId: string, libraryId: string): Promise<any[]> {
+    const cacheKey = CACHE_LIBRARY.BOOKS(libraryId);
+    const cached = await this.cacheManager.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const library = await this.libraryModel
       .findOne({
         _id: libraryId,
         userId: new Types.ObjectId(userId),
       })
-      .populate({
-        path: "books",
-        populate: { path: "bookId", model: "Book" },
-      })
       .exec();
-
     if (!library) {
       throw ApiError.BadRequest(
         "Library not found or does not belong to this user"
       );
     }
+    const libBooks = await this.libraryBookModel
+      .find({ libraryId: library._id })
+      .lean();
 
-    return await Promise.all(
-      (library.books as Types.ObjectId[]).map(async (bookRef: any) => {
-        const libBook = await this.libraryBookModel
-          .findById(bookRef)
-          .populate("bookId")
-          .exec();
-        return libBook?.bookId;
-      })
+    const books = await Promise.all(
+      libBooks.map((lb) =>
+        firstValueFrom(
+          this.bookClient.send({ cmd: "get-book-by-id" }, lb.bookId.toString())
+        )
+      )
     );
+
+    await this.cacheManager.set(cacheKey, books, 3600);
+
+    return books;
   }
 
   async addBookToLibrary(
@@ -96,11 +122,7 @@ export class LibraryService {
     libraryId: string
   ): Promise<LibraryBook> {
     const library = await this.libraryModel.findById(libraryId).exec();
-    if (!library) {
-      throw ApiError.BadRequest(
-        "Library not found or does not belong to this user"
-      );
-    }
+    if (!library) throw ApiError.BadRequest("Library not found");
 
     const book = await firstValueFrom(
       this.bookClient.send({ cmd: "get-book-by-id" }, bookId)
@@ -110,42 +132,36 @@ export class LibraryService {
     const exists = await this.libraryBookModel
       .findOne({ bookId, libraryId })
       .exec();
-    if (exists) throw ApiError.BadRequest("Book already added to the library");
+    if (exists) throw ApiError.BadRequest("Book already in library");
 
-    const libraryBook = new this.libraryBookModel({ bookId, libraryId });
-    await libraryBook.save();
-
-    library.books.push(libraryBook._id);
+    const libBook = new this.libraryBookModel({ bookId, libraryId });
+    await libBook.save();
+    library.books.push(libBook._id);
     await library.save();
 
-    return libraryBook;
+    await this.cacheManager.del(CACHE_LIBRARY.BOOKS(libraryId));
+    return libBook;
   }
 
-  async removeBookFromLibrary(bookId: string, libraryId: string) {
+  async removeBookFromLibrary(
+    bookId: string,
+    libraryId: string
+  ): Promise<LibraryBook> {
     const library = await this.libraryModel.findById(libraryId).exec();
-    if (!library)
-      throw ApiError.BadRequest(
-        "Library not found or does not belong to this user"
-      );
+    if (!library) throw ApiError.BadRequest("Library not found");
 
-    const libraryBook = await this.libraryBookModel
-      .findOne({
-        bookId,
-        libraryId,
-      })
+    const libBook = await this.libraryBookModel
+      .findOne({ bookId, libraryId })
       .exec();
+    if (!libBook) throw ApiError.BadRequest("Book not in library");
 
-    if (!libraryBook) {
-      throw ApiError.BadRequest("Book not found in the library");
-    }
-
-    await this.libraryBookModel.deleteOne({ _id: libraryBook._id });
-
+    await this.libraryBookModel.deleteOne({ _id: libBook._id }).exec();
     await this.libraryModel.findByIdAndUpdate(libraryId, {
-      $pull: { books: libraryBook._id },
+      $pull: { books: libBook._id },
     });
 
-    return libraryBook;
+    await this.cacheManager.del(CACHE_LIBRARY.BOOKS(libraryId));
+    return libBook;
   }
 
   async checkBookInLibrary(
@@ -167,21 +183,16 @@ export class LibraryService {
       throw ApiError.BadRequest("Incorrect visibility");
     }
 
-    const library = await this.libraryModel.findOneAndUpdate(
-      {
-        _id: libraryId,
-        userId: new Types.ObjectId(userId),
-      },
-      { visibility },
-      { new: true }
-    );
+    const updated = await this.libraryModel
+      .findOneAndUpdate(
+        { _id: libraryId, userId: new Types.ObjectId(userId) },
+        { visibility },
+        { new: true }
+      )
+      .exec();
+    if (!updated) throw ApiError.BadRequest("Library not found");
 
-    if (!library) {
-      throw ApiError.BadRequest(
-        "Library not found or does not belong to this user"
-      );
-    }
-
-    return library;
+    await this.cacheManager.del(CACHE_LIBRARY.LIBRARY(userId));
+    return updated;
   }
 }

@@ -9,6 +9,8 @@ import {
   Post,
   HttpStatus,
   HttpCode,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
@@ -18,7 +20,10 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiConsumes,
 } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { multerStorage } from "src/config/multer.config";
 
 @ApiTags("Clubs (Proxy)")
 @Controller("club")
@@ -28,7 +33,8 @@ export class ClubController {
   ) {}
 
   @Post()
-  @ApiOperation({ summary: "Create book club" })
+  @UseInterceptors(FileInterceptor("imageFile", { storage: multerStorage }))
+  @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
       type: "object",
@@ -36,23 +42,20 @@ export class ClubController {
         name: { type: "string" },
         description: { type: "string" },
         userId: { type: "string" },
-        imageFile: { type: "string", nullable: true }, // приклад, може бути base64 або multipart через інший метод
+        imageFile: {
+          type: "string",
+          format: "binary",
+          nullable: true,
+        },
       },
-      required: ["name", "description", "userId"],
     },
   })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Book club created" })
   async createBookClub(
-    @Body()
-    payload: {
-      name: string;
-      description: string;
-      userId: string;
-      imageFile?: any;
-    }
+    @Body() body: { name: string; description: string; userId: string },
+    @UploadedFile() imageFile?: Express.Multer.File
   ) {
     return firstValueFrom(
-      this.clubClient.send({ cmd: "create-book-club" }, payload)
+      this.clubClient.send({ cmd: "create-book-club" }, { ...body, imageFile })
     );
   }
 
