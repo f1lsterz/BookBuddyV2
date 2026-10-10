@@ -1,10 +1,10 @@
 import { INestApplication } from "@nestjs/common";
 import helmet from "helmet";
-import * as compression from "compression";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
-import * as hpp from "hpp";
-import * as cors from "cors";
-import * as cookieParser from "cookie-parser";
+import hpp from "hpp";
+import cors from "cors";
+import cookieParser from "cookie-parser";
 import { ConfigService } from "@nestjs/config";
 
 export function setupMiddlewares(app: INestApplication, configService: ConfigService) {

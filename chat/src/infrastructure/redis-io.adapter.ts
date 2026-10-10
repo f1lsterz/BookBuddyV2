@@ -40,7 +40,9 @@ export class RedisIoAdapter extends IoAdapter {
         "RedisIoAdapter: call connectToRedis() before accepting connections",
       );
     }
-    server.adapter(this.adapterConstructor);
+    server.adapter(
+      this.adapterConstructor as unknown as Parameters<Server["adapter"]>[0],
+    );
     return server;
   }
 }

@@ -34,7 +34,11 @@ describe("Club member joined → notifications (e2e)", () => {
             if (res.status !== 200) {
               throw new Error(`notifications HTTP ${res.status}`);
             }
-            return res.body as Array<{ type: string; read: boolean }>;
+            return res.body as Array<{
+              _id: string;
+              type: string;
+              read: boolean;
+            }>;
           }),
       (list) => list.some((n) => n.type === CLUB_MEMBER_JOINED),
     );
@@ -43,7 +47,7 @@ describe("Club member joined → notifications (e2e)", () => {
     expect(joined?.read).toBe(false);
 
     await request(gateway)
-      .patch(`/user/me/notifications/${(joined as { _id: string })._id}/read`)
+      .patch(`/user/me/notifications/${joined!._id}/read`)
       .set("Authorization", `Bearer ${member.accessToken}`)
       .expect(200);
 

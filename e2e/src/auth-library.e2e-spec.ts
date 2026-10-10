@@ -21,7 +21,11 @@ describe("Auth + library (e2e)", () => {
     expect(reg.body.accessToken).toBeDefined();
     expect(reg.body.refreshToken).toBeUndefined();
     expect(reg.body.user?.email).toBe(email);
-    expect(reg.headers["set-cookie"]?.join(";")).toMatch(/refreshToken=/);
+    const setCookie = reg.headers["set-cookie"];
+    const cookieHeader = Array.isArray(setCookie)
+      ? setCookie.join(";")
+      : (setCookie ?? "");
+    expect(cookieHeader).toMatch(/refreshToken=/);
 
     const refreshed = await agent.post("/auth/refresh").send({}).expect(200);
     expect(refreshed.body.accessToken).toBeDefined();
