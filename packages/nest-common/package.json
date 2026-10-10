@@ -1,0 +1,48 @@
+{
+  "name": "@bookbuddy/nest-common",
+  "version": "0.0.1",
+  "private": true,
+  "description": "NestJS filters and interceptors for BookBuddy",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prebuild": "pnpm --filter @bookbuddy/shared run build",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@bookbuddy/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@nestjs/cache-manager": "^3.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/microservices": "^11.0.0",
+    "@nestjs/mongoose": "^11.0.0",
+    "cache-manager": "^6.0.0",
+    "mongoose": "^7.0.0",
+    "rxjs": "^7.8.0"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/cache-manager": {
+      "optional": true
+    },
+    "@nestjs/mongoose": {
+      "optional": true
+    },
+    "cache-manager": {
+      "optional": true
+    },
+    "mongoose": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/microservices": "^11.1.2",
+    "@types/express": "^5.0.0",
+    "rxjs": "^7.8.1",
+    "typescript": "^5.7.3"
+  }
+}

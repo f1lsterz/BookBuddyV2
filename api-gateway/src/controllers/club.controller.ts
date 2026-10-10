@@ -11,199 +11,164 @@ import {
   HttpCode,
   UploadedFile,
   UseInterceptors,
+  Query,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
+import { sendRpc } from "src/common/rpc/send-rpc";
+import {
+  AddClubMemberDto,
+  ClubCmd,
+  CreateClubBodyDto,
+  CreateClubRpcDto,
+  SearchClubsDto,
+  UpdateClubDto,
+  UpdateClubRpcDto,
+} from "@bookbuddy/shared";
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiParam,
   ApiBody,
   ApiConsumes,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { multerStorage } from "src/config/multer.config";
+import { Public } from "../common/decorators/public.decorator";
+import { CurrentUser } from "../common/decorators/current.user.decorator";
+import { RequestUser } from "../common/types/request-user";
+import {
+  AddClubMemberApiDto,
+  CreateClubMultipartApiDto,
+  UpdateClubApiDto,
+} from "../dto/swagger/club.swagger";
 
+@ApiBearerAuth()
 @ApiTags("Clubs (Proxy)")
 @Controller("club")
 export class ClubController {
-  constructor(
-    @Inject("CLUB_SERVICE") private readonly clubClient: ClientProxy
-  ) {}
+  constructor(@Inject("CLUB_SERVICE") private readonly clubClient: ClientProxy) {}
 
   @Post()
   @UseInterceptors(FileInterceptor("imageFile", { storage: multerStorage }))
   @ApiConsumes("multipart/form-data")
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        description: { type: "string" },
-        userId: { type: "string" },
-        imageFile: {
-          type: "string",
-          format: "binary",
-          nullable: true,
-        },
-      },
-    },
-  })
+  @ApiBody({ type: CreateClubMultipartApiDto })
   async createBookClub(
-    @Body() body: { name: string; description: string; userId: string },
-    @UploadedFile() imageFile?: Express.Multer.File
+    @Body() body: CreateClubBodyDto,
+    @CurrentUser() user: RequestUser,
+    @UploadedFile() imageFile?: Express.Multer.File,
   ) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "create-book-club" }, { ...body, imageFile })
-    );
+    const payload: CreateClubRpcDto = {
+      name: body.name,
+      description: body.description,
+      userId: user.userId,
+      imageFile: imageFile ? { filename: imageFile.filename } : undefined,
+    };
+    return sendRpc<unknown>(this.clubClient, { cmd: ClubCmd.CREATE }, payload);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Get all clubs" })
-  @ApiResponse({ status: HttpStatus.OK, description: "List of clubs" })
   async getAllClubs() {
-    return firstValueFrom(this.clubClient.send({ cmd: "get-all-clubs" }, {}));
+    return sendRpc<unknown>(this.clubClient, { cmd: ClubCmd.GET_ALL }, {});
   }
 
+  @Public()
   @Get("search")
   @ApiOperation({ summary: "Search clubs" })
-  async searchClubs(@Body() payload: { query?: string; filterFull?: boolean }) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "search-clubs" }, payload)
+  async searchClubs(@Query() payload: SearchClubsDto) {
+    return sendRpc<unknown>(this.clubClient, { cmd: ClubCmd.SEARCH }, payload);
+  }
+
+  @Get("me/in-any")
+  @ApiOperation({ summary: "Check if I am in any club" })
+  async isUserInAnyClub(@CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.IS_USER_IN_ANY_CLUB },
+      user.userId,
     );
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get club by ID" })
   @ApiParam({ name: "id", required: true, description: "Club ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "Club found" })
   async getClub(@Param("id") id: string) {
-    return firstValueFrom(this.clubClient.send({ cmd: "get-club" }, id));
+    return sendRpc<unknown>(this.clubClient, { cmd: ClubCmd.GET }, id);
   }
 
   @Patch(":id")
   @ApiOperation({ summary: "Update book club" })
-  @ApiParam({ name: "id", required: true, description: "Club ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        name: { type: "string", nullable: true },
-        description: { type: "string", nullable: true },
-        imageFile: { type: "string", nullable: true },
-      },
-    },
-  })
-  @ApiResponse({ status: HttpStatus.OK, description: "Book club updated" })
+  @ApiBody({ type: UpdateClubApiDto })
   async updateBookClub(
     @Param("id") clubId: string,
-    @Body()
-    payload: {
-      name?: string;
-      description?: string;
-      imageFile?: any;
-    }
+    @Body() payload: UpdateClubDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "update-book-club" }, { clubId, ...payload })
-    );
+    const rpc: UpdateClubRpcDto = { clubId, actorId: user.userId, ...payload };
+    return sendRpc<unknown>(this.clubClient, { cmd: ClubCmd.UPDATE }, rpc);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete book club" })
-  @ApiParam({ name: "id", required: true, description: "Club ID" })
-  async deleteBookClub(@Param("id") clubId: string) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "delete-book-club" }, clubId)
+  async deleteBookClub(@Param("id") clubId: string, @CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.DELETE },
+      { clubId, actorId: user.userId },
     );
   }
 
   @Post(":id/members")
   @ApiOperation({ summary: "Add member to club" })
-  @ApiParam({ name: "id", description: "Club ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-      },
-      required: ["userId"],
-    },
-  })
+  @ApiBody({ type: AddClubMemberApiDto })
   async addMember(
     @Param("id") clubId: string,
-    @Body() body: { userId: string }
+    @Body() body: AddClubMemberDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.clubClient.send(
-        { cmd: "add-member" },
-        { clubId, userId: body.userId }
-      )
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.ADD_MEMBER },
+      { clubId, userId: body.userId, actorId: user.userId },
     );
   }
 
   @Delete(":id/members/:userId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Remove member from club" })
-  @ApiParam({ name: "id", description: "Club ID" })
-  @ApiParam({ name: "userId", description: "User ID" })
   async removeMember(
     @Param("id") clubId: string,
-    @Param("userId") userId: string
+    @Param("userId") userId: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.clubClient.send(
-        { cmd: "remove-member-from-club" },
-        { clubId, userId }
-      )
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.REMOVE_MEMBER },
+      { clubId, userId, actorId: user.userId },
     );
   }
 
   @Post(":id/leave")
   @ApiOperation({ summary: "Leave from club" })
-  @ApiParam({ name: "id", description: "Club ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-      },
-      required: ["userId"],
-    },
-  })
-  async leaveFromClub(
-    @Param("id") clubId: string,
-    @Body() body: { userId: string }
-  ) {
-    return firstValueFrom(
-      this.clubClient.send(
-        { cmd: "leave-from-club" },
-        { clubId, userId: body.userId }
-      )
+  async leaveFromClub(@Param("id") clubId: string, @CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.LEAVE },
+      { clubId, userId: user.userId },
     );
   }
 
-  @Get(":id/is-member/:userId")
-  @ApiOperation({ summary: "Check if user is in club" })
-  @ApiParam({ name: "id", description: "Club ID" })
-  @ApiParam({ name: "userId", description: "User ID" })
-  async isUserInClub(
-    @Param("id") clubId: string,
-    @Param("userId") userId: string
-  ) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "is-user-in-club" }, { userId, clubId })
-    );
-  }
-
-  @Get("user/:userId/in-any")
-  @ApiOperation({ summary: "Check if user is in any club" })
-  @ApiParam({ name: "userId", description: "User ID" })
-  async isUserInAnyClub(@Param("userId") userId: string) {
-    return firstValueFrom(
-      this.clubClient.send({ cmd: "is-user-in-any-club" }, userId)
+  @Get(":id/is-member/me")
+  @ApiOperation({ summary: "Check if I am in club" })
+  async isUserInClub(@Param("id") clubId: string, @CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.clubClient,
+      { cmd: ClubCmd.IS_USER_IN_CLUB },
+      { userId: user.userId, clubId },
     );
   }
 }

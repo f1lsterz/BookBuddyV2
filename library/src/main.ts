@@ -1,12 +1,9 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import {
-  MicroserviceOptions,
-  RmqOptions,
-  Transport,
-} from "@nestjs/microservices";
+import { MicroserviceOptions, RmqOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
-import { validationConfig } from "../../api-gateway/src/config/validation.config";
+import { BookbuddyRpcExceptionFilter, validationConfig } from "@bookbuddy/nest-common";
+import { createRmqTransportOptions, resolveRmqQueue, RmqQueue } from "@bookbuddy/shared";
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(AppModule);
@@ -15,32 +12,26 @@ async function bootstrap() {
   const rmqUrl =
     configService.get<string>("config.rabbitmq.url") ||
     "amqp://user:password@localhost:5672";
-  const rmqQueue =
-    configService.get<string>("config.rabbitmq.queue") || "user_queue";
+  const rmqQueue = resolveRmqQueue(
+    configService.get<string>("config.rabbitmq.queue"),
+    RmqQueue.LIBRARY,
+  );
 
   const rmqOptions: RmqOptions = {
     transport: Transport.RMQ,
-    options: {
-      urls: [rmqUrl],
-      queue: rmqQueue,
-      queueOptions: {
-        durable: false,
-      },
-    },
+    options: createRmqTransportOptions(rmqUrl, rmqQueue),
   };
 
-  const microservice =
-    await NestFactory.createMicroservice<MicroserviceOptions>(
-      AppModule,
-      rmqOptions
-    );
+  const microservice = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    rmqOptions,
+  );
 
   microservice.useGlobalPipes(validationConfig);
+  microservice.useGlobalFilters(new BookbuddyRpcExceptionFilter());
 
   await microservice.listen();
-  console.log(
-    `✅ Library Microservice is listening via RabbitMQ at queue "${rmqQueue}"`
-  );
+  console.log(`✅ Library Microservice is listening via RabbitMQ at queue "${rmqQueue}"`);
 }
 
-bootstrap();
+void bootstrap();

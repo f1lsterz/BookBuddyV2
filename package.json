@@ -1,0 +1,50 @@
+{
+  "name": "bookbuddy",
+  "version": "0.0.1",
+  "private": true,
+  "description": "BookBuddy microservices monorepo",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build:libs": "pnpm --filter @bookbuddy/shared run build && pnpm --filter @bookbuddy/nest-common run build",
+    "build": "pnpm run build:libs && pnpm run build:services",
+    "build:services": "pnpm -r --parallel --filter \"./api-gateway\" --filter \"./auth\" --filter \"./user\" --filter \"./book\" --filter \"./library\" --filter \"./club\" --filter \"./chat\" --filter \"./analytics\" run build",
+    "prepare": "husky",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm --filter club --filter user --filter library --filter book --filter auth --filter chat run test",
+    "test:application": "node tooling/scripts/test-application.mjs",
+    "test:unit:extended": "pnpm run test && pnpm run test:application",
+    "test:domain-events": "pnpm --filter user run test -- --testPathPattern=notification.application.service.spec",
+    "test:e2e": "pnpm --filter @bookbuddy/e2e run test",
+    "e2e:run": "node tooling/scripts/e2e-run.mjs",
+    "format": "prettier --write \"**/*.{ts,mjs,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,mjs,json,md}\"",
+    "infra:up": "docker compose up -d",
+    "infra:replset": "node tooling/scripts/init-mongo-replset.mjs",
+    "infra:rabbit": "node tooling/scripts/init-rabbit-domain-topology.mjs",
+    "migrate": "node tooling/scripts/migrate-all.mjs",
+    "infra:down": "docker compose down",
+    "apps:up": "docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build",
+    "apps:down": "docker compose -f docker-compose.yml -f docker-compose.apps.yml down",
+    "setup:env": "node tooling/scripts/copy-env.mjs",
+    "seed:books": "node tooling/scripts/seed-books.mjs",
+    "predev:all": "pnpm run build:libs",
+    "dev:all": "concurrently -k -n gateway,auth,user,book,library,club,chat,analytics -c blue,green,yellow,magenta,cyan,red,white,gray \"pnpm --filter api-gateway run start:dev\" \"pnpm --filter auth run start:dev\" \"pnpm --filter user run start:dev\" \"pnpm --filter book run start:dev\" \"pnpm --filter library run start:dev\" \"pnpm --filter club run start:dev\" \"pnpm --filter chat run start:dev\" \"pnpm --filter analytics run start:dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^15.14.0",
+    "prettier": "^3.5.3",
+    "typescript-eslint": "^8.20.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "dotenv": "^16.4.7",
+    "migrate-mongo": "^12.1.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

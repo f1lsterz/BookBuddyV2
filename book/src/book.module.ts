@@ -1,19 +1,18 @@
 import { Module } from "@nestjs/common";
-import { BookService } from "./book.service";
-import { BookListener } from "./book.listener";
 import { MongooseModule } from "@nestjs/mongoose";
-import {
-  Book,
-  BookRating,
-  BookRatingSchema,
-  BookSchema,
-} from "schemas/book.schema";
+import { Book, BookRating, BookRatingSchema, BookSchema } from "schemas/book.schema";
 import {
   Comment,
   CommentReaction,
   CommentReactionSchema,
   CommentSchema,
 } from "schemas/comment.schema";
+import { BookApplicationService } from "./application/book.application.service";
+import { BookRepository } from "./infrastructure/book.repository";
+import { CommentRepository } from "./infrastructure/comment.repository";
+import { BookListener } from "./transport/book.listener";
+import { HealthListener } from "./transport/health.listener";
+import { MongoHealthService } from "@bookbuddy/nest-common";
 
 @Module({
   imports: [
@@ -24,7 +23,12 @@ import {
       { name: CommentReaction.name, schema: CommentReactionSchema },
     ]),
   ],
-  controllers: [BookListener],
-  providers: [BookService],
+  controllers: [BookListener, HealthListener],
+  providers: [
+    BookRepository,
+    CommentRepository,
+    BookApplicationService,
+    MongoHealthService,
+  ],
 })
 export class BookModule {}

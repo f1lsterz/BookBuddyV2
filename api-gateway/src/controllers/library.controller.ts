@@ -11,178 +11,166 @@ import {
   HttpCode,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
+import { sendRpc } from "src/common/rpc/send-rpc";
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiBearerAuth } from "@nestjs/swagger";
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-} from "@nestjs/swagger";
-import { LibraryVisibility } from "../../../library/schemas/library.schema";
+  CreateCustomLibraryBodyDto,
+  CreateCustomLibraryDto,
+  LibraryBookBodyDto,
+  LibraryBookPayloadDto,
+  LibraryCmd,
+  LibraryUserScopeDto,
+  LibraryViewerBooksDto,
+  LibraryViewerScopeDto,
+  UpdateLibraryVisibilityBodyDto,
+  UpdateLibraryVisibilityDto,
+} from "@bookbuddy/shared";
+import { CurrentUser } from "../common/decorators/current.user.decorator";
+import { RequestUser } from "../common/types/request-user";
+import {
+  CreateCustomLibraryApiDto,
+  LibraryBookPayloadApiDto,
+  UpdateLibraryVisibilityApiDto,
+} from "../dto/swagger/library.swagger";
 
+@ApiBearerAuth()
 @ApiTags("Library (Proxy)")
 @Controller("library")
 export class LibraryController {
-  constructor(
-    @Inject("LIBRARY_SERVICE") private readonly libraryClient: ClientProxy
-  ) {}
+  constructor(@Inject("LIBRARY_SERVICE") private readonly libraryClient: ClientProxy) {}
 
-  @Get(":userId")
-  @ApiOperation({ summary: "Get user library" })
-  @ApiParam({ name: "userId", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "User library data" })
-  async getLibrary(@Param("userId") userId: string) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "get-library" }, userId)
+  @Get("users/:ownerId/shelves")
+  @ApiOperation({ summary: "List shelves visible to me for another user" })
+  @ApiParam({ name: "ownerId", description: "Library owner user id" })
+  async listVisibleShelves(
+    @Param("ownerId") ownerId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const payload: LibraryViewerScopeDto = { ownerId, viewerId: user.userId };
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.LIST_VISIBLE_SHELVES },
+      payload,
+    );
+  }
+
+  @Get("users/:ownerId/shelves/:libraryId/books")
+  @ApiOperation({ summary: "Books on a shelf visible to me" })
+  async getVisibleShelfBooks(
+    @Param("ownerId") ownerId: string,
+    @Param("libraryId") libraryId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const payload: LibraryViewerBooksDto = {
+      ownerId,
+      libraryId,
+      viewerId: user.userId,
+    };
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.GET_BOOKS_FOR_VIEWER },
+      payload,
+    );
+  }
+
+  @Get("me")
+  @ApiOperation({ summary: "List my library shelves" })
+  async listMyLibraries(@CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.LIST_LIBRARIES },
+      user.userId,
     );
   }
 
   @Post("custom")
-  @ApiOperation({ summary: "Create custom library" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-        customName: { type: "string" },
-        visibility: { type: "string", enum: Object.values(LibraryVisibility) },
-      },
-      required: ["userId", "customName", "visibility"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Library created" })
+  @ApiOperation({ summary: "Create custom library shelf" })
+  @ApiBody({ type: CreateCustomLibraryApiDto })
   async createCustomLibrary(
-    @Body()
-    payload: {
-      userId: string;
-      customName: string;
-      visibility: LibraryVisibility;
-    }
+    @Body() body: CreateCustomLibraryBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "create-custom-library" }, payload)
+    const payload: CreateCustomLibraryDto = { userId: user.userId, ...body };
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.CREATE_CUSTOM },
+      payload,
     );
   }
 
-  @Delete("custom/:userId/:libraryId")
+  @Delete("custom/:libraryId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete custom library" })
-  @ApiParam({ name: "userId", description: "User ID" })
   @ApiParam({ name: "libraryId", description: "Library ID" })
   async deleteCustomLibrary(
-    @Param("userId") userId: string,
-    @Param("libraryId") libraryId: string
+    @Param("libraryId") libraryId: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send(
-        { cmd: "delete-custom-library" },
-        { userId, libraryId }
-      )
+    const payload: LibraryUserScopeDto = { userId: user.userId, libraryId };
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.DELETE_CUSTOM },
+      payload,
     );
   }
 
-  @Get("books/:userId/:libraryId")
-  @ApiOperation({ summary: "Get books in library" })
-  @ApiParam({ name: "userId", description: "User ID" })
+  @Get("books/:libraryId")
+  @ApiOperation({ summary: "Get books in my library shelf" })
   @ApiParam({ name: "libraryId", description: "Library ID" })
   async getBooksInLibrary(
-    @Param("userId") userId: string,
-    @Param("libraryId") libraryId: string
+    @Param("libraryId") libraryId: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send(
-        { cmd: "get-books-in-library" },
-        { userId, libraryId }
-      )
-    );
+    const payload: LibraryUserScopeDto = { userId: user.userId, libraryId };
+    return sendRpc<unknown>(this.libraryClient, { cmd: LibraryCmd.GET_BOOKS }, payload);
   }
 
   @Post("books")
   @ApiOperation({ summary: "Add book to library" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        bookId: { type: "string" },
-        libraryId: { type: "string" },
-      },
-      required: ["bookId", "libraryId"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.OK, description: "Book added" })
+  @ApiBody({ type: LibraryBookPayloadApiDto })
   async addBookToLibrary(
-    @Body() payload: { bookId: string; libraryId: string }
+    @Body() body: LibraryBookBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "add-book-to-library" }, payload)
-    );
+    const payload: LibraryBookPayloadDto = { userId: user.userId, ...body };
+    return sendRpc<unknown>(this.libraryClient, { cmd: LibraryCmd.ADD_BOOK }, payload);
   }
 
   @Delete("books")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Remove book from library" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        bookId: { type: "string" },
-        libraryId: { type: "string" },
-      },
-      required: ["bookId", "libraryId"],
-    },
-  })
+  @ApiBody({ type: LibraryBookPayloadApiDto })
   async removeBookFromLibrary(
-    @Body() payload: { bookId: string; libraryId: string }
+    @Body() body: LibraryBookBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "remove-book-from-library" }, payload)
-    );
+    const payload: LibraryBookPayloadDto = { userId: user.userId, ...body };
+    return sendRpc<unknown>(this.libraryClient, { cmd: LibraryCmd.REMOVE_BOOK }, payload);
   }
 
   @Post("books/check")
   @ApiOperation({ summary: "Check if book is in library" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        bookId: { type: "string" },
-        libraryId: { type: "string" },
-      },
-      required: ["bookId", "libraryId"],
-    },
-  })
+  @ApiBody({ type: LibraryBookPayloadApiDto })
   async checkBookInLibrary(
-    @Body() payload: { bookId: string; libraryId: string }
+    @Body() body: LibraryBookBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "check-book-in-library" }, payload)
-    );
+    const payload: LibraryBookPayloadDto = { userId: user.userId, ...body };
+    return sendRpc<unknown>(this.libraryClient, { cmd: LibraryCmd.CHECK_BOOK }, payload);
   }
 
   @Patch("visibility")
   @ApiOperation({ summary: "Update library visibility" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-        libraryId: { type: "string" },
-        visibility: { type: "string", enum: Object.values(LibraryVisibility) },
-      },
-      required: ["userId", "libraryId", "visibility"],
-    },
-  })
+  @ApiBody({ type: UpdateLibraryVisibilityApiDto })
   async updateLibraryVisibility(
-    @Body()
-    payload: {
-      userId: string;
-      libraryId: string;
-      visibility: LibraryVisibility;
-    }
+    @Body() body: UpdateLibraryVisibilityBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.libraryClient.send({ cmd: "update-library-visibility" }, payload)
+    const payload: UpdateLibraryVisibilityDto = { userId: user.userId, ...body };
+    return sendRpc<unknown>(
+      this.libraryClient,
+      { cmd: LibraryCmd.UPDATE_VISIBILITY },
+      payload,
     );
   }
 }

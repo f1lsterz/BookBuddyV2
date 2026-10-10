@@ -1,13 +1,12 @@
+import { CommentReactionType } from "@bookbuddy/shared";
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument, Types } from "mongoose";
 
 export type CommentDocument = HydratedDocument<Comment>;
 export type CommentReactionDocument = HydratedDocument<CommentReaction>;
 
-export enum Reaction {
-  LIKE = "LIKE",
-  DISLIKE = "DISLIKE",
-}
+/** @deprecated use CommentReactionType from @bookbuddy/shared */
+export const Reaction = CommentReactionType;
 
 @Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class Comment {
@@ -37,8 +36,8 @@ export const CommentSchema = SchemaFactory.createForClass(Comment);
 
 @Schema({ timestamps: true })
 export class CommentReaction {
-  @Prop({ required: true, enum: Reaction })
-  reaction: Reaction;
+  @Prop({ required: true, enum: CommentReactionType })
+  reaction: CommentReactionType;
 
   @Prop({ type: Types.ObjectId, ref: "Comment", required: true })
   commentId: Types.ObjectId;
@@ -47,7 +46,6 @@ export class CommentReaction {
   userId: Types.ObjectId;
 }
 
-export const CommentReactionSchema =
-  SchemaFactory.createForClass(CommentReaction);
+export const CommentReactionSchema = SchemaFactory.createForClass(CommentReaction);
 
 CommentReactionSchema.index({ userId: 1, commentId: 1 }, { unique: true });

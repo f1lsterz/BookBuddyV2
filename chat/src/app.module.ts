@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { CacheModule } from "@nestjs/cache-manager";
 import { createKeyv } from "@keyv/redis";
 import { APP_INTERCEPTOR } from "@nestjs/core";
-import { TimeoutInterceptor } from "../../api-gateway/src/common/interceptors/timeout.interceptor";
+import { TimeoutInterceptor } from "@bookbuddy/nest-common";
 import { ChatModule } from "./chat.module";
 import { MongooseModule } from "@nestjs/mongoose";
 
@@ -16,7 +16,7 @@ import { MongooseModule } from "@nestjs/mongoose";
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>("config.database.url"),
       }),
       inject: [ConfigService],
@@ -25,10 +25,12 @@ import { MongooseModule } from "@nestjs/mongoose";
       imports: [ConfigModule],
       inject: [ConfigService],
       isGlobal: true,
-      useFactory: async (configService: ConfigService) => {
-        const redis = configService.get("config.redis");
+      useFactory: (configService: ConfigService) => {
+        const redis = configService.get<{ host: string; port: string }>("config.redis");
+        const host = redis?.host ?? "localhost";
+        const port = redis?.port ?? "6379";
         return {
-          stores: [createKeyv(`redis://${redis.host}:${redis.port}`)],
+          stores: [createKeyv(`redis://${host}:${port}`)],
           compression: true,
         };
       },

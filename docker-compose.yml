@@ -10,68 +10,107 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: user
       RABBITMQ_DEFAULT_PASS: password
-    restart: always
+    restart: unless-stopped
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: redis_cache
-    restart: always
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   mongo-user-service:
     image: mongo:6
     container_name: mongo-user-service
-    restart: always
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo-user-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   mongo-club-service:
     image: mongo:6
     container_name: mongo-club-service
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    restart: unless-stopped
     ports:
       - "27018:27017"
-    env_file:
-      - ./club/.env
     volumes:
       - mongo-club-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   mongo-library-service:
     image: mongo:6
     container_name: mongo-library-service
+    restart: unless-stopped
     ports:
       - "27019:27017"
-    env_file:
-      - ./library/.env
     volumes:
       - mongo-library-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   mongo-book-service:
     image: mongo:6
     container_name: mongo-book-service
+    restart: unless-stopped
     ports:
       - "27020:27017"
-    env_file:
-      - ./book/.env
     volumes:
       - mongo-book-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   mongo-chat-service:
     image: mongo:6
     container_name: mongo-chat-service
+    restart: unless-stopped
     ports:
       - "27021:27017"
-    env_file:
-      - ./chat/.env
     volumes:
       - mongo-chat-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
 volumes:
   rabbitmq_data:

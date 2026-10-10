@@ -1,0 +1,11 @@
+packages:
+  - api-gateway
+  - auth
+  - user
+  - book
+  - library
+  - club
+  - chat
+  - analytics
+  - e2e
+  - packages/*

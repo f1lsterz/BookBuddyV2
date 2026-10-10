@@ -5,213 +5,159 @@ import {
   Get,
   Inject,
   Param,
-  Patch,
   Post,
   HttpStatus,
   HttpCode,
+  Query,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
+import { sendRpc } from "src/common/rpc/send-rpc";
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-  ApiBearerAuth,
-} from "@nestjs/swagger";
+  AddCommentBodyDto,
+  AddCommentDto,
+  BookCmd,
+  BookUserRpcDto,
+  DeleteCommentRpcDto,
+  GetBooksQueryDto,
+  ToggleReactionBodyDto,
+  ToggleReactionDto,
+  UpsertBookRatingBodyDto,
+  UpsertBookRatingRpcDto,
+} from "@bookbuddy/shared";
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiBearerAuth } from "@nestjs/swagger";
+import { Public } from "../common/decorators/public.decorator";
+import { CurrentUser } from "../common/decorators/current.user.decorator";
+import { RequestUser } from "../common/types/request-user";
+import {
+  AddCommentBodyApiDto,
+  ToggleReactionBodyApiDto,
+  UpsertBookRatingBodyApiDto,
+} from "../dto/swagger/book.swagger";
 
+@ApiBearerAuth()
 @ApiTags("Books (Proxy)")
 @Controller("book")
 export class BookController {
-  constructor(
-    @Inject("BOOK_SERVICE") private readonly bookClient: ClientProxy
-  ) {}
+  constructor(@Inject("BOOK_SERVICE") private readonly bookClient: ClientProxy) {}
 
+  @Public()
   @Get("count")
   @ApiOperation({ summary: "Count all books" })
-  @ApiResponse({ status: HttpStatus.OK, description: "Number of books" })
   async countBooks() {
-    return firstValueFrom(this.bookClient.send({ cmd: "count-books" }, {}));
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.COUNT }, {});
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Get paginated list of books" })
-  @ApiResponse({ status: HttpStatus.OK, description: "List of books" })
-  async getBooks(
-    @Body()
-    payload: {
-      page?: number;
-      limit?: number;
-      sortBy?: string;
-      order?: "asc" | "desc";
-      query?: string;
-    }
-  ) {
-    return firstValueFrom(this.bookClient.send({ cmd: "get-books" }, payload));
+  async getBooks(@Query() payload: GetBooksQueryDto) {
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.GET_LIST }, payload);
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get book by ID" })
   @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "Book found" })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: "Book not found" })
   async getBookById(@Param("id") id: string) {
-    return firstValueFrom(this.bookClient.send({ cmd: "get-book-by-id" }, id));
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.GET_BY_ID }, id);
   }
 
   @Post(":id/comment")
   @ApiOperation({ summary: "Add comment to book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-        commentText: { type: "string" },
-      },
-      required: ["userId", "commentText"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Comment added" })
+  @ApiBody({ type: AddCommentBodyApiDto })
   async addCommentToBook(
     @Param("id") bookId: string,
-    @Body() body: { userId: string; commentText: string }
+    @Body() body: AddCommentBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.bookClient.send(
-        { cmd: "add-comment-to-book" },
-        { bookId, userId: body.userId, commentText: body.commentText }
-      )
-    );
+    const dto: AddCommentDto = {
+      bookId,
+      userId: user.userId,
+      commentText: body.commentText,
+    };
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.ADD_COMMENT }, dto);
   }
 
+  @Public()
   @Get(":id/comments")
   @ApiOperation({ summary: "Get comments for book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "List of comments" })
   async getCommentsForBook(@Param("id") bookId: string) {
-    return firstValueFrom(
-      this.bookClient.send({ cmd: "get-comments-for-book" }, bookId)
-    );
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.GET_COMMENTS }, bookId);
   }
 
   @Delete("comment/:commentId")
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete comment" })
-  @ApiParam({ name: "commentId", required: true, description: "Comment ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-      },
-      required: ["userId"],
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.NO_CONTENT,
-    description: "Comment deleted",
-  })
   async deleteComment(
     @Param("commentId") commentId: string,
-    @Body() body: { userId: string }
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.bookClient.send(
-        { cmd: "delete-comment" },
-        { commentId, userId: body.userId }
-      )
-    );
+    const payload: DeleteCommentRpcDto = { commentId, userId: user.userId };
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.DELETE_COMMENT }, payload);
   }
 
   @Post("comment/:commentId/reaction")
   @ApiOperation({ summary: "Toggle reaction on comment" })
-  @ApiParam({ name: "commentId", required: true, description: "Comment ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-        reactionType: { type: "string" },
-      },
-      required: ["userId", "reactionType"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.OK, description: "Reaction toggled" })
+  @ApiBody({ type: ToggleReactionBodyApiDto })
   async toggleReaction(
     @Param("commentId") commentId: string,
-    @Body() body: { userId: string; reactionType: string }
+    @Body() body: ToggleReactionBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.bookClient.send(
-        { cmd: "toggle-reaction" },
-        { commentId, userId: body.userId, reactionType: body.reactionType }
-      )
-    );
+    const dto: ToggleReactionDto = {
+      commentId,
+      userId: user.userId,
+      reactionType: body.reactionType,
+    };
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.TOGGLE_REACTION }, dto);
   }
 
+  @Public()
   @Get(":id/average-rating")
   @ApiOperation({ summary: "Get average rating for book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
   async getAverageRating(@Param("id") bookId: string) {
-    return firstValueFrom(
-      this.bookClient.send({ cmd: "get-average-rating" }, bookId)
-    );
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.GET_AVERAGE_RATING }, bookId);
   }
 
-  @Get(":id/user-rating/:userId")
-  @ApiOperation({ summary: "Get user's rating for book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiParam({ name: "userId", required: true, description: "User ID" })
-  async getUserBookRating(
-    @Param("id") bookId: string,
-    @Param("userId") userId: string
-  ) {
-    return firstValueFrom(
-      this.bookClient.send({ cmd: "get-user-book-rating" }, { bookId, userId })
-    );
+  @Get(":id/user-rating/me")
+  @ApiOperation({ summary: "Get my rating for book" })
+  async getMyBookRating(@Param("id") bookId: string, @CurrentUser() user: RequestUser) {
+    const payload: BookUserRpcDto = { bookId, userId: user.userId };
+    return sendRpc<unknown>(this.bookClient, { cmd: BookCmd.GET_USER_RATING }, payload);
   }
 
   @Post(":id/user-rating")
-  @ApiOperation({ summary: "Create or update user's rating for book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-        newRating: { type: "number" },
-      },
-      required: ["userId", "newRating"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Rating saved" })
+  @ApiOperation({ summary: "Create or update my rating for book" })
+  @ApiBody({ type: UpsertBookRatingBodyApiDto })
   async upsertUserBookRating(
     @Param("id") bookId: string,
-    @Body() body: { userId: string; newRating: number }
+    @Body() body: UpsertBookRatingBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.bookClient.send(
-        { cmd: "upsert-user-book-rating" },
-        { bookId, userId: body.userId, newRating: body.newRating }
-      )
+    const payload: UpsertBookRatingRpcDto = {
+      bookId,
+      userId: user.userId,
+      newRating: body.newRating,
+    };
+    return sendRpc<unknown>(
+      this.bookClient,
+      { cmd: BookCmd.UPSERT_USER_RATING },
+      payload,
     );
   }
 
-  @Delete(":id/user-rating/:userId")
-  @ApiOperation({ summary: "Delete user's rating for book" })
-  @ApiParam({ name: "id", required: true, description: "Book ID" })
-  @ApiParam({ name: "userId", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: "Rating deleted" })
-  async deleteUserBookRating(
+  @Delete(":id/user-rating/me")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete my rating for book" })
+  async deleteMyBookRating(
     @Param("id") bookId: string,
-    @Param("userId") userId: string
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.bookClient.send(
-        { cmd: "delete-user-book-rating" },
-        { bookId, userId }
-      )
+    const payload: BookUserRpcDto = { bookId, userId: user.userId };
+    return sendRpc<unknown>(
+      this.bookClient,
+      { cmd: BookCmd.DELETE_USER_RATING },
+      payload,
     );
   }
 }

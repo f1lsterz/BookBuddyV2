@@ -1,46 +1,45 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import {
-  MicroserviceOptions,
-  RmqOptions,
-  Transport,
-} from "@nestjs/microservices";
+import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
-import { validationConfig } from "../../api-gateway/src/config/validation.config";
+import { BookbuddyRpcExceptionFilter, validationConfig } from "@bookbuddy/nest-common";
+import {
+  createRmqDomainEventSubscriberOptions,
+  createRmqTransportOptions,
+  resolveRmqQueue,
+  RmqQueue,
+} from "@bookbuddy/shared";
 
 async function bootstrap() {
-  const appContext = await NestFactory.createApplicationContext(AppModule);
-  const configService = appContext.get<ConfigService>(ConfigService);
+  const app = await NestFactory.create(AppModule);
+  const configService = app.get<ConfigService>(ConfigService);
 
   const rmqUrl =
     configService.get<string>("config.rabbitmq.url") ||
     "amqp://user:password@localhost:5672";
-  const rmqQueue =
-    configService.get<string>("config.rabbitmq.queue") || "user_queue";
-
-  const rmqOptions: RmqOptions = {
-    transport: Transport.RMQ,
-    options: {
-      urls: [rmqUrl],
-      queue: rmqQueue,
-      queueOptions: {
-        durable: false,
-      },
-    },
-  };
-
-  const microservice =
-    await NestFactory.createMicroservice<MicroserviceOptions>(
-      AppModule,
-      rmqOptions
-    );
-
-  microservice.useGlobalPipes(validationConfig);
-
-  await microservice.listen();
-  console.log(
-    `✅ User Microservice is listening via RabbitMQ at queue "${rmqQueue}"`
+  const rmqQueue = resolveRmqQueue(
+    configService.get<string>("config.rabbitmq.queue"),
+    RmqQueue.USER,
   );
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: createRmqTransportOptions(rmqUrl, rmqQueue),
+  });
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: createRmqDomainEventSubscriberOptions(rmqUrl, RmqQueue.USER_EVENTS),
+  });
+
+  app.useGlobalPipes(validationConfig);
+  app.useGlobalFilters(new BookbuddyRpcExceptionFilter());
+
+  await app.init();
+  await app.startAllMicroservices();
+
+  console.log(`✅ User Microservice RPC queue "${rmqQueue}"`);
+  console.log(`✅ User domain events queue "${RmqQueue.USER_EVENTS}"`);
 }
 
-bootstrap();
+void bootstrap();

@@ -11,99 +11,75 @@ import {
   HttpCode,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { firstValueFrom } from "rxjs";
-import { SendMessageDto } from "../../../chat/src/dto/send.message.dto";
+import { sendRpc } from "src/common/rpc/send-rpc";
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-} from "@nestjs/swagger";
+  ChatCmd,
+  ClubMessagesRpcDto,
+  ClearClubChatRpcDto,
+  DeleteChatMessageRpcDto,
+  SendMessageBodyDto,
+  SendMessageDto,
+} from "@bookbuddy/shared";
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiBearerAuth } from "@nestjs/swagger";
+import { CurrentUser } from "../common/decorators/current.user.decorator";
+import { RequestUser } from "../common/types/request-user";
+import { SendMessageApiDto } from "../dto/swagger/chat.swagger";
 
+@ApiBearerAuth()
 @ApiTags("Chats (Proxy)")
 @Controller("chats")
 export class ChatController {
-  constructor(
-    @Inject("CHAT_SERVICE") private readonly chatClient: ClientProxy
-  ) {}
+  constructor(@Inject("CHAT_SERVICE") private readonly chatClient: ClientProxy) {}
 
   @Post("send-message")
   @ApiOperation({ summary: "Send a message to a club chat" })
-  @ApiBody({ type: SendMessageDto })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Message sent" })
-  async sendMessage(@Body() dto: SendMessageDto) {
-    return firstValueFrom(
-      this.chatClient.send({ cmd: "chat.send-message" }, dto)
-    );
+  @ApiBody({ type: SendMessageApiDto })
+  async sendMessage(@Body() body: SendMessageBodyDto, @CurrentUser() user: RequestUser) {
+    const dto: SendMessageDto = {
+      clubId: body.clubId,
+      userId: user.userId,
+      message: body.message,
+    };
+    return sendRpc<unknown>(this.chatClient, { cmd: ChatCmd.SEND_MESSAGE }, dto);
   }
 
   @Get("club/:clubId/messages")
   @ApiOperation({ summary: "Get messages by club ID" })
   @ApiParam({ name: "clubId", required: true, description: "Club ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "Messages retrieved" })
   async getMessagesByClub(
     @Param("clubId") clubId: string,
+    @CurrentUser() user: RequestUser,
     @Query("limit") limit?: number,
-    @Query("skip") skip?: number
+    @Query("skip") skip?: number,
   ) {
-    return firstValueFrom(
-      this.chatClient.send(
-        { cmd: "chat.get-messages-by-club" },
-        { clubId, limit: Number(limit), skip: Number(skip) }
-      )
-    );
-  }
-
-  @Get("user/:userId/messages")
-  @ApiOperation({ summary: "Get messages by user ID" })
-  @ApiParam({ name: "userId", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "Messages retrieved" })
-  async getMessagesByUser(
-    @Param("userId") userId: string,
-    @Query("limit") limit?: number,
-    @Query("skip") skip?: number
-  ) {
-    return firstValueFrom(
-      this.chatClient.send(
-        { cmd: "chat.get-messages-by-user" },
-        { userId, limit: Number(limit), skip: Number(skip) }
-      )
-    );
+    const payload: ClubMessagesRpcDto = {
+      userId: user.userId,
+      clubId,
+      limit: limit !== undefined ? Number(limit) : undefined,
+      skip: skip !== undefined ? Number(skip) : undefined,
+    };
+    return sendRpc<unknown>(this.chatClient, { cmd: ChatCmd.GET_BY_CLUB }, payload);
   }
 
   @Delete("message/:messageId")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete a message by ID" })
-  @ApiParam({ name: "messageId", required: true, description: "Message ID" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId: { type: "string" },
-      },
-      required: ["userId"],
-    },
-  })
   async deleteMessage(
     @Param("messageId") messageId: string,
-    @Body() body: { userId: string }
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.chatClient.send(
-        { cmd: "chat.delete-message" },
-        { messageId, userId: body.userId }
-      )
-    );
+    const payload: DeleteChatMessageRpcDto = { messageId, userId: user.userId };
+    return sendRpc<unknown>(this.chatClient, { cmd: ChatCmd.DELETE_MESSAGE }, payload);
   }
 
   @Delete("club/:clubId/clear")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Clear all messages from a club chat" })
-  @ApiParam({ name: "clubId", required: true, description: "Club ID" })
-  async clearMessagesByClub(@Param("clubId") clubId: string) {
-    return firstValueFrom(
-      this.chatClient.send({ cmd: "chat.clear-club-messages" }, clubId)
-    );
+  async clearMessagesByClub(
+    @Param("clubId") clubId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const payload: ClearClubChatRpcDto = { clubId, actorId: user.userId };
+    return sendRpc<unknown>(this.chatClient, { cmd: ChatCmd.CLEAR_CLUB }, payload);
   }
 }

@@ -20,6 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@bookbuddy/nest-common": "workspace:*",
+    "@bookbuddy/shared": "workspace:*",
     "@keyv/redis": "^4.3.1",
     "@nestjs/cache-manager": "^3.0.0",
     "@nestjs/common": "^11.0.1",
@@ -99,6 +101,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^schemas/(.*)$": "<rootDir>/../schemas/$1"
+    },
+    "setupFiles": [
+      "<rootDir>/../../tooling/jest/reflect-setup.ts"
+    ]
   }
 }

@@ -12,11 +12,9 @@ export enum LibraryStatus {
   CUSTOM = "CUSTOM",
 }
 
-export enum LibraryVisibility {
-  PUBLIC = "PUBLIC",
-  PRIVATE = "PRIVATE",
-  FRIENDS = "FRIENDS",
-}
+import { LibraryVisibility } from "@bookbuddy/shared";
+
+export { LibraryVisibility };
 
 @Schema({ timestamps: true })
 export class Library {

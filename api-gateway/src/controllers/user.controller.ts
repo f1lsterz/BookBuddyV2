@@ -7,172 +7,169 @@ import {
   Param,
   Patch,
   Post,
-  HttpStatus,
-  HttpCode,
+  Query,
+  UseGuards,
 } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { UpdateUserDto } from "../../../user/src/dto/updateUserDto";
-import { CreateUserDto } from "../../../user/src/dto/createUserDto";
-import { firstValueFrom } from "rxjs";
-import { Access } from "src/common/decorators/access.decorator";
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-  ApiBearerAuth,
-} from "@nestjs/swagger";
+  AppError,
+  RemoveFriendDto,
+  Role,
+  FriendRequestActionRpcDto,
+  SendFriendRequestDto,
+  SendFriendRequestBodyDto,
+  UpdateUserDto,
+  UserCmd,
+  ListNotificationsQueryDto,
+} from "@bookbuddy/shared";
+import { sendRpc } from "src/common/rpc/send-rpc";
+import { Access } from "src/common/decorators/access.decorator";
+import { CurrentUser } from "src/common/decorators/current.user.decorator";
+import { SelfOrAdminGuard } from "src/common/guards/self-or-admin.guard";
+import { RequestUser } from "src/common/types/request-user";
+import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiBearerAuth } from "@nestjs/swagger";
+import {
+  RemoveFriendApiDto,
+  SendFriendRequestApiDto,
+  UpdateUserApiDto,
+} from "../dto/swagger/user.swagger";
 
-//@ApiBearerAuth("jwt")
+@ApiBearerAuth()
 @ApiTags("Users (Proxy)")
 @Controller("user")
 export class UserController {
-  constructor(
-    @Inject("USER_SERVICE") private readonly userClient: ClientProxy
-  ) {}
+  constructor(@Inject("USER_SERVICE") private readonly userClient: ClientProxy) {}
 
-  @Get(":id")
-  //@Access()
-  @ApiOperation({ summary: "Get user by ID" })
-  @ApiParam({ name: "id", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "User found" })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: "User not found" })
-  async getUserById(@Param("id") id: string) {
-    return firstValueFrom(this.userClient.send({ cmd: "get-user-by-id" }, id));
+  @Get("me/friends")
+  @ApiOperation({ summary: "Get my friends" })
+  async getMyFriends(@CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(this.userClient, { cmd: UserCmd.GET_FRIENDS }, user.userId);
   }
 
-  @Get("/email/:email")
-  @Access()
-  @ApiOperation({ summary: "Get user by email" })
-  @ApiParam({ name: "email", required: true, description: "User email" })
-  @ApiResponse({ status: HttpStatus.OK, description: "User found" })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: "User not found" })
-  async getUserByEmail(@Param("email") email: string) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "get-user-by-email" }, email)
+  @Get("me/notifications")
+  @ApiOperation({ summary: "In-app notifications (from domain events)" })
+  async getMyNotifications(
+    @CurrentUser() user: RequestUser,
+    @Query() query: ListNotificationsQueryDto,
+  ) {
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.LIST_NOTIFICATIONS },
+      { userId: user.userId, unreadOnly: query.unreadOnly },
     );
   }
 
-  @Post()
-  @ApiOperation({ summary: "Create user" })
-  @ApiBody({ type: CreateUserDto })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "User created" })
-  async createUser(@Body() dto: CreateUserDto) {
-    return firstValueFrom(this.userClient.send({ cmd: "create-user" }, dto));
-  }
-
-  @Patch(":id")
-  @Access()
-  @ApiOperation({ summary: "Update user" })
-  @ApiParam({ name: "id", required: true, description: "User ID" })
-  @ApiBody({ type: UpdateUserDto })
-  @ApiResponse({ status: HttpStatus.OK, description: "User updated" })
-  async updateUser(@Param("id") id: string, @Body() dto: UpdateUserDto) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "update-user" }, { id, dto })
+  @Patch("me/notifications/read-all")
+  @ApiOperation({ summary: "Mark all notifications as read" })
+  async markAllNotificationsRead(@CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.MARK_ALL_NOTIFICATIONS_READ },
+      user.userId,
     );
   }
 
-  @Delete(":id")
-  @Access()
-  @ApiOperation({ summary: "Delete user" })
-  @ApiParam({ name: "id", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: "User deleted" })
-  async deleteUser(@Param("id") id: string) {
-    return firstValueFrom(this.userClient.send({ cmd: "delete-user" }, id));
+  @Patch("me/notifications/:id/read")
+  @ApiOperation({ summary: "Mark one notification as read" })
+  async markNotificationRead(
+    @CurrentUser() user: RequestUser,
+    @Param("id") notificationId: string,
+  ) {
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.MARK_NOTIFICATION_READ },
+      { userId: user.userId, notificationId },
+    );
   }
 
-  @Get(":id/friends")
-  @Access()
-  @ApiOperation({ summary: "Get user's friends" })
-  @ApiParam({ name: "id", required: true, description: "User ID" })
-  @ApiResponse({ status: HttpStatus.OK, description: "List of friends" })
-  async getFriends(@Param("id") id: string) {
-    return firstValueFrom(this.userClient.send({ cmd: "get-friends" }, id));
+  @Get("me/friend-requests")
+  @ApiOperation({ summary: "Get my pending friend requests" })
+  async getMyPendingFriendRequests(@CurrentUser() user: RequestUser) {
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.GET_PENDING_FRIEND_REQUESTS },
+      user.userId,
+    );
   }
 
   @Post("friend-request")
-  @Access()
   @ApiOperation({ summary: "Send friend request" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        senderId: { type: "string" },
-        receiverId: { type: "string" },
-      },
-      required: ["senderId", "receiverId"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.CREATED, description: "Request sent" })
+  @ApiBody({ type: SendFriendRequestApiDto })
   async sendFriendRequest(
-    @Body() payload: { senderId: string; receiverId: string }
+    @Body() body: SendFriendRequestBodyDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "send-friend-request" }, payload)
+    const payload: SendFriendRequestDto = {
+      senderId: user.userId,
+      receiverId: body.receiverId,
+    };
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.SEND_FRIEND_REQUEST },
+      payload,
     );
   }
 
   @Post("friend-request/:id/accept")
-  @Access()
   @ApiOperation({ summary: "Accept friend request" })
-  @ApiParam({ name: "id", description: "Friend request ID" })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Friend request accepted",
-  })
-  async acceptFriendRequest(@Param("id") requestId: string) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "accept-friend-request" }, requestId)
+  async acceptFriendRequest(
+    @Param("id") requestId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const payload: FriendRequestActionRpcDto = { requestId, actorId: user.userId };
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.ACCEPT_FRIEND_REQUEST },
+      payload,
     );
   }
 
   @Post("friend-request/:id/decline")
-  @Access()
   @ApiOperation({ summary: "Decline friend request" })
-  @ApiParam({ name: "id", description: "Friend request ID" })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Friend request declined",
-  })
-  async declineFriendRequest(@Param("id") requestId: string) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "decline-friend-request" }, requestId)
-    );
-  }
-
-  @Get(":id/friend-requests")
-  @Access()
-  @ApiOperation({ summary: "Get pending friend requests" })
-  @ApiParam({ name: "id", description: "User ID" })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "List of friend requests",
-  })
-  async getPendingFriendRequests(@Param("id") receiverId: string) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "get-pending-friend-requests" }, receiverId)
+  async declineFriendRequest(
+    @Param("id") requestId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const payload: FriendRequestActionRpcDto = { requestId, actorId: user.userId };
+    return sendRpc<unknown>(
+      this.userClient,
+      { cmd: UserCmd.DECLINE_FRIEND_REQUEST },
+      payload,
     );
   }
 
   @Delete("friend")
-  @Access()
   @ApiOperation({ summary: "Remove a friend" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        userId1: { type: "string" },
-        userId2: { type: "string" },
-      },
-      required: ["userId1", "userId2"],
-    },
-  })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: "Friend removed" })
-  async removeFriend(@Body() payload: { userId1: string; userId2: string }) {
-    return firstValueFrom(
-      this.userClient.send({ cmd: "remove-friend" }, payload)
-    );
+  @ApiBody({ type: RemoveFriendApiDto })
+  async removeFriend(@Body() payload: RemoveFriendDto, @CurrentUser() user: RequestUser) {
+    const isParticipant =
+      payload.userId1 === user.userId || payload.userId2 === user.userId;
+    if (!isParticipant && user.role !== Role.ADMIN) {
+      throw AppError.forbidden("You can only remove your own friendships");
+    }
+    return sendRpc<unknown>(this.userClient, { cmd: UserCmd.REMOVE_FRIEND }, payload);
+  }
+
+  @Get(":id")
+  @UseGuards(SelfOrAdminGuard)
+  @ApiOperation({ summary: "Get user by ID (self or admin)" })
+  @ApiParam({ name: "id", required: true, description: "User ID" })
+  async getUserById(@Param("id") id: string) {
+    return sendRpc<unknown>(this.userClient, { cmd: UserCmd.GET_BY_ID }, id);
+  }
+
+  @Patch(":id")
+  @UseGuards(SelfOrAdminGuard)
+  @ApiOperation({ summary: "Update user (self or admin)" })
+  @ApiBody({ type: UpdateUserApiDto })
+  async updateUser(@Param("id") id: string, @Body() dto: UpdateUserDto) {
+    return sendRpc<unknown>(this.userClient, { cmd: UserCmd.UPDATE }, { id, dto });
+  }
+
+  @Delete(":id")
+  @Access(Role.ADMIN)
+  @ApiOperation({ summary: "Delete user (admin)" })
+  async deleteUser(@Param("id") id: string) {
+    return sendRpc<unknown>(this.userClient, { cmd: UserCmd.DELETE }, id);
   }
 }

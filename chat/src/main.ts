@@ -1,46 +1,47 @@
+import type { WebSocketAdapter } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import {
-  MicroserviceOptions,
-  RmqOptions,
-  Transport,
-} from "@nestjs/microservices";
+import { MicroserviceOptions, RmqOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
-import { validationConfig } from "../../api-gateway/src/config/validation.config";
+import { BookbuddyRpcExceptionFilter, validationConfig } from "@bookbuddy/nest-common";
+import { createRmqTransportOptions, resolveRmqQueue, RmqQueue } from "@bookbuddy/shared";
+import { RedisIoAdapter } from "./infrastructure/redis-io.adapter";
 
 async function bootstrap() {
-  const appContext = await NestFactory.createApplicationContext(AppModule);
-  const configService = appContext.get<ConfigService>(ConfigService);
+  const app = await NestFactory.create(AppModule);
+  const configService = app.get<ConfigService>(ConfigService);
+
+  const redisHost = configService.get<string>("config.redis.host") ?? "localhost";
+  const redisPort = configService.get<string>("config.redis.port") ?? "6379";
+  const redisAdapter = new RedisIoAdapter(app);
+  await redisAdapter.connectToRedis(redisHost, redisPort);
+  // Nest IoAdapter vs WebSocketAdapter typings diverge across @nestjs/* minors.
+  app.useWebSocketAdapter(redisAdapter as unknown as WebSocketAdapter);
 
   const rmqUrl =
     configService.get<string>("config.rabbitmq.url") ||
     "amqp://user:password@localhost:5672";
-  const rmqQueue =
-    configService.get<string>("config.rabbitmq.queue") || "user_queue";
+  const rmqQueue = resolveRmqQueue(
+    configService.get<string>("config.rabbitmq.queue"),
+    RmqQueue.CHAT,
+  );
 
   const rmqOptions: RmqOptions = {
     transport: Transport.RMQ,
-    options: {
-      urls: [rmqUrl],
-      queue: rmqQueue,
-      queueOptions: {
-        durable: false,
-      },
-    },
+    options: createRmqTransportOptions(rmqUrl, rmqQueue),
   };
 
-  const microservice =
-    await NestFactory.createMicroservice<MicroserviceOptions>(
-      AppModule,
-      rmqOptions
-    );
+  app.connectMicroservice<MicroserviceOptions>(rmqOptions);
+  app.useGlobalPipes(validationConfig);
+  app.useGlobalFilters(new BookbuddyRpcExceptionFilter());
 
-  microservice.useGlobalPipes(validationConfig);
+  await app.startAllMicroservices();
 
-  await microservice.listen();
-  console.log(
-    `✅ Chat Microservice is listening via RabbitMQ at queue "${rmqQueue}"`
-  );
+  const chatPort = Number(configService.get<string>("config.socket.chatPort")) || 3001;
+  await app.listen(chatPort);
+
+  console.log(`✅ Chat Microservice is listening via RabbitMQ at queue "${rmqQueue}"`);
+  console.log(`✅ Chat WebSocket (Socket.IO) on port ${chatPort}`);
 }
 
-bootstrap();
+void bootstrap();

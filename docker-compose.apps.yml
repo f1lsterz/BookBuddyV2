@@ -1,0 +1,138 @@
+# Optional: run Nest services in Docker (infra must be up: pnpm run infra:up).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.apps.yml up -d --build
+#
+# Requires .env files (pnpm run setup:env). For Docker network, override hosts below.
+
+version: "3.8"
+
+x-rabbit-env: &rabbit-env
+  RABBITMQ_URL: amqp://user:password@rabbitmq:5672
+
+x-redis-env: &redis-env
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+x-jwt-env: &jwt-env
+  JWT_SECRET: change-me-in-production
+  JWT_EXPIRES_IN: 1d
+  JWT_REFRESH_EXPIRES_IN: 7d
+  CLIENT_URL: http://localhost:5173
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node api-gateway/dist/main.js
+    ports:
+      - "3000:3000"
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      SERVER_PORT: 3000
+      SERVER_URL: http://localhost
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node auth/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: auth_queue
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  user:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node user/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: user_queue
+      DATABASE_URL: mongodb://mongo-user-service:27017/bookbuddy-user
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-user-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  book:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node book/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: book_queue
+      DATABASE_URL: mongodb://mongo-book-service:27017/bookbuddy-book
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-book-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  library:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node library/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: library_queue
+      DATABASE_URL: mongodb://mongo-library-service:27017/bookbuddy-library
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-library-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  club:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node club/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: club_queue
+      DATABASE_URL: mongodb://mongo-club-service:27017/bookbuddy-club
+      GATEWAY_URL: http://api-gateway:3000
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-club-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        START_CMD: node chat/dist/main.js
+    environment:
+      <<: [*rabbit-env, *redis-env, *jwt-env]
+      RABBITMQ_QUEUE: chat_queue
+      DATABASE_URL: mongodb://mongo-chat-service:27017/bookbuddy-chat
+      SOCKET_CHAT_PORT: 3001
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-chat-service:
+        condition: service_healthy
+    restart: unless-stopped

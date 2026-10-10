@@ -6,9 +6,7 @@ export default registerAs("config", () => ({
     url: process.env.SERVER_URL || "http://localhost",
   },
   database: {
-    url:
-      process.env.DATABASE_URL ||
-      "mysql://root:123456@localhost:3306/bookbuddy",
+    url: process.env.DATABASE_URL || "mysql://root:123456@localhost:3306/bookbuddy",
   },
   secret: process.env.JWT_SECRET || "bookbuddy",
   signOptions: {
@@ -22,6 +20,7 @@ export default registerAs("config", () => ({
   },
   client: {
     url: process.env.CLIENT_URL || "http://localhost:5173",
+    oauthCallbackPath: process.env.CLIENT_OAUTH_CALLBACK_PATH || "/auth/callback",
   },
   redis: {
     host: process.env.REDIS_HOST || "localhost",
